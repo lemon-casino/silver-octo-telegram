@@ -15,6 +15,8 @@ import org.flowable.bpmn.model.FlowNode;
 import org.flowable.bpmn.model.FlowElement;
 import org.flowable.bpmn.model.Process;
 import org.flowable.bpmn.model.UserTask;
+import org.flowable.bpmn.model.Activity;
+import org.flowable.bpmn.model.MultiInstanceLoopCharacteristics;
 import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.api.FlowableObjectNotFoundException;
 import org.flowable.common.engine.impl.interceptor.Command;
@@ -229,6 +231,17 @@ public class BackTaskCmd implements Command<String>, Serializable {
         List<String> realExecutionIds = realExecutions.stream().map(ExecutionEntity::getId).collect(Collectors.toList());
         log.info("[BackTaskCmd] moving executions {} to {}", realExecutionIds, targetRealActivityId);
         
+        // 检查目标节点是否是多实例任务
+        FlowElement targetElement = process.getFlowElement(targetRealActivityId, true);
+        boolean isTargetMultiInstance = false;
+        if (targetElement instanceof UserTask) {
+            UserTask targetUserTask = (UserTask) targetElement;
+            isTargetMultiInstance = targetUserTask.getLoopCharacteristics() != null;
+            if (isTargetMultiInstance) {
+                log.info("[BackTaskCmd] target is a multi-instance activity: {}", targetRealActivityId);
+            }
+        }
+        
         // 执行活动状态变更
         try {
             runtimeService.createChangeActivityStateBuilder().processInstanceId(processInstanceId)
@@ -244,6 +257,51 @@ public class BackTaskCmd implements Command<String>, Serializable {
             
             // 检查目标节点是否已创建
             verifyTargetCreated(commandContext, processInstanceId, targetRealActivityId);
+            
+            // 如果目标是多实例任务，可能需要额外处理
+            if (isTargetMultiInstance) {
+                log.info("[BackTaskCmd] checking multi-instance variables for target activity {}", targetRealActivityId);
+                List<ExecutionEntity> allExecutions = CommandContextUtil.getExecutionEntityManager(commandContext)
+                        .findChildExecutionsByProcessInstanceId(processInstanceId);
+                
+                // 查找目标多实例根执行实体
+                ExecutionEntity multiInstanceRoot = null;
+                for (ExecutionEntity execution : allExecutions) {
+                    if (targetRealActivityId.equals(execution.getActivityId()) && execution.isMultiInstanceRoot()) {
+                        multiInstanceRoot = execution;
+                        log.info("[BackTaskCmd] found multi-instance root execution: {}", execution.getId());
+                        break;
+                    }
+                }
+                
+                // 如果找到多实例根执行实体，确保必要的多实例变量已设置
+                if (multiInstanceRoot != null) {
+                    // 检查并设置必要的多实例变量
+                    if (multiInstanceRoot.getVariable("nrOfInstances") == null) {
+                        multiInstanceRoot.setVariable("nrOfInstances", 1);
+                        log.info("[BackTaskCmd] set nrOfInstances to 1 for {}", multiInstanceRoot.getId());
+                    }
+                    
+                    if (multiInstanceRoot.getVariable("nrOfCompletedInstances") == null) {
+                        multiInstanceRoot.setVariable("nrOfCompletedInstances", 0);
+                        log.info("[BackTaskCmd] set nrOfCompletedInstances to 0 for {}", multiInstanceRoot.getId());
+                    }
+                    
+                    if (multiInstanceRoot.getVariable("nrOfActiveInstances") == null) {
+                        multiInstanceRoot.setVariable("nrOfActiveInstances", 1);
+                        log.info("[BackTaskCmd] set nrOfActiveInstances to 1 for {}", multiInstanceRoot.getId());
+                    }
+                    
+                    // 检查collectionVariable是否设置
+                    String collectionVariable = targetRealActivityId + "_assignees";
+                    if (multiInstanceRoot.getVariable(collectionVariable) == null) {
+                        // 这里可以根据实际情况设置合适的值
+                        multiInstanceRoot.setVariable(collectionVariable, new HashSet<Long>());
+                        log.info("[BackTaskCmd] initialized empty collection variable {} for {}", 
+                                collectionVariable, multiInstanceRoot.getId());
+                    }
+                }
+            }
             
             return targetRealActivityId;
         } catch (Exception e) {
@@ -300,6 +358,37 @@ public class BackTaskCmd implements Command<String>, Serializable {
             
             if (flowElement instanceof UserTask) {
                 log.info("[BackTaskCmd] target node is a UserTask, forcing task creation");
+                UserTask userTask = (UserTask) flowElement;
+                
+                // 检查是否是多实例任务
+                if (userTask.getLoopCharacteristics() != null) {
+                    log.info("[BackTaskCmd] target node is a multi-instance task");
+                    
+                    // 处理多实例变量，确保它们正确初始化
+                    if (targetExecution.isMultiInstanceRoot()) {
+                        log.info("[BackTaskCmd] initializing multi-instance variables for execution {}", targetExecution.getId());
+                        
+                        // 检查并设置必要的多实例变量
+                        if (targetExecution.getVariable("nrOfInstances") == null) {
+                            targetExecution.setVariable("nrOfInstances", 1);
+                            log.info("[BackTaskCmd] set nrOfInstances to 1");
+                        }
+                        
+                        if (targetExecution.getVariable("nrOfCompletedInstances") == null) {
+                            targetExecution.setVariable("nrOfCompletedInstances", 0);
+                            log.info("[BackTaskCmd] set nrOfCompletedInstances to 0");
+                        }
+                        
+                        if (targetExecution.getVariable("nrOfActiveInstances") == null) {
+                            targetExecution.setVariable("nrOfActiveInstances", 1);
+                            log.info("[BackTaskCmd] set nrOfActiveInstances to 1");
+                        }
+                        
+                        // 检查completionCondition是否存在
+                        String completionCondition = userTask.getLoopCharacteristics().getCompletionCondition();
+                        log.info("[BackTaskCmd] multi-instance completion condition: {}", completionCondition);
+                    }
+                }
                 
                 // 强制触发任务创建行为
                 targetExecution.setCurrentFlowElement(flowElement);
@@ -368,6 +457,9 @@ public class BackTaskCmd implements Command<String>, Serializable {
         if (isMultiInstanceRoot) {
             multiInstanceRoot = parentExecutionEntity;
             log.info("[BackTaskCmd] parent execution is a multi-instance root");
+            
+            // 确保多实例变量存在
+            ensureMultiInstanceVariables(multiInstanceRoot);
             
             // 获取多实例根的父执行实体，用于创建网关执行
             ExecutionEntity multiInstanceParent = executionEntityManager.findById(parentExecutionEntity.getParentId());
@@ -495,6 +587,13 @@ public class BackTaskCmd implements Command<String>, Serializable {
                 for (ExecutionEntity execution : allExecutions) {
                     if (userTask.getId().equals(execution.getActivityId())) {
                         hasExecution = true;
+                        
+                        // 如果是多实例节点，确保相关变量存在
+                        if (execution.isMultiInstanceRoot() && userTask.getLoopCharacteristics() != null) {
+                            log.info("[BackTaskCmd] ensuring variables for multi-instance execution: {}", execution.getId());
+                            ensureMultiInstanceVariables(execution);
+                        }
+                        
                         break;
                     }
                 }
@@ -506,6 +605,44 @@ public class BackTaskCmd implements Command<String>, Serializable {
                     // 这里可以添加更多的逻辑来判断是否需要激活特定的UserTask
                     // 例如，检查是否是目标网关的后续节点
                 }
+            }
+        }
+    }
+    
+    /**
+     * 确保多实例执行实体具有所需的变量
+     */
+    private void ensureMultiInstanceVariables(ExecutionEntity multiInstanceExecution) {
+        if (!multiInstanceExecution.isMultiInstanceRoot()) {
+            log.warn("[BackTaskCmd] execution {} is not a multi-instance root", multiInstanceExecution.getId());
+            return;
+        }
+        
+        // 检查并设置必要的多实例变量
+        if (multiInstanceExecution.getVariable("nrOfInstances") == null) {
+            multiInstanceExecution.setVariable("nrOfInstances", 1);
+            log.info("[BackTaskCmd] set nrOfInstances to 1 for {}", multiInstanceExecution.getId());
+        }
+        
+        if (multiInstanceExecution.getVariable("nrOfCompletedInstances") == null) {
+            multiInstanceExecution.setVariable("nrOfCompletedInstances", 0);
+            log.info("[BackTaskCmd] set nrOfCompletedInstances to 0 for {}", multiInstanceExecution.getId());
+        }
+        
+        if (multiInstanceExecution.getVariable("nrOfActiveInstances") == null) {
+            multiInstanceExecution.setVariable("nrOfActiveInstances", 1);
+            log.info("[BackTaskCmd] set nrOfActiveInstances to 1 for {}", multiInstanceExecution.getId());
+        }
+        
+        // 检查collectionVariable是否设置
+        String activityId = multiInstanceExecution.getActivityId();
+        if (activityId != null) {
+            String collectionVariable = activityId + "_assignees";
+            if (multiInstanceExecution.getVariable(collectionVariable) == null) {
+                // 这里可以根据实际情况设置合适的值
+                multiInstanceExecution.setVariable(collectionVariable, new HashSet<Long>());
+                log.info("[BackTaskCmd] initialized empty collection variable {} for {}", 
+                        collectionVariable, multiInstanceExecution.getId());
             }
         }
     }
@@ -534,6 +671,9 @@ public class BackTaskCmd implements Command<String>, Serializable {
         
         if (multiInstanceRoot != null) {
             log.info("[BackTaskCmd] task execution is part of multi-instance activity: {}", multiInstanceRoot.getActivityId());
+            
+            // 检查多实例变量是否存在
+            ensureMultiInstanceVariables(multiInstanceRoot);
         }
         
         if (scopeExecution != null && !scopeExecution.getId().equals(taskExecution.getId())) {
@@ -542,6 +682,21 @@ public class BackTaskCmd implements Command<String>, Serializable {
         
         List<ExecutionEntity> executions = executionEntityManager.findChildExecutionsByProcessInstanceId(processInstanceId);
         log.debug("[BackTaskCmd] found {} child executions for process instance {}", executions.size(), processInstanceId);
+        
+        // 检查目标节点是否是多实例活动
+        Process process = ProcessDefinitionUtil.getProcess(taskExecution.getProcessDefinitionId());
+        boolean hasMultiInstanceTarget = false;
+        for (String activityId : activityIds) {
+            FlowElement flowElement = process.getFlowElement(activityId, true);
+            if (flowElement instanceof Activity) {
+                Activity activity = (Activity) flowElement;
+                if (activity.getLoopCharacteristics() != null) {
+                    hasMultiInstanceTarget = true;
+                    log.info("[BackTaskCmd] detected multi-instance target activity: {}", activityId);
+                    break;
+                }
+            }
+        }
         
         Set<String> parentExecutionIds = FlowableJumpUtils.getParentExecutionIdsByActivityId(executions, sourceRealActivityId);
         log.debug("[BackTaskCmd] found {} parent execution IDs for source activity {}: {}", 
@@ -577,6 +732,30 @@ public class BackTaskCmd implements Command<String>, Serializable {
         // 优先尝试通过父执行ID和活动ID查找
         List<ExecutionEntity> realExecutions = executionEntityManager.findExecutionsByParentExecutionAndActivityIds(
                 realParentExecutionId, activityIds);
+        
+        // 如果目标是多实例活动，可能需要特殊处理
+        if (realExecutions.isEmpty() && hasMultiInstanceTarget) {
+            log.info("[BackTaskCmd] using special handling for multi-instance target");
+            
+            // 对于多实例目标，我们可能需要使用流程实例ID作为父执行ID
+            if (!realParentExecutionId.equals(processInstanceId)) {
+                realExecutions = executionEntityManager.findExecutionsByParentExecutionAndActivityIds(
+                        processInstanceId, activityIds);
+                log.info("[BackTaskCmd] attempted to find executions using process instance as parent: found {}", 
+                        realExecutions.size());
+            }
+            
+            // 如果仍然找不到执行实体，尝试直接查找任何匹配活动ID的执行
+            if (realExecutions.isEmpty()) {
+                for (ExecutionEntity execution : executions) {
+                    if (activityIds.contains(execution.getActivityId())) {
+                        log.info("[BackTaskCmd] found execution for multi-instance target by direct match: {}", 
+                                execution.getId());
+                        realExecutions.add(execution);
+                    }
+                }
+            }
+        }
         
         // 如果没有找到匹配的执行实体，尝试直接查找活动ID
         if (realExecutions.isEmpty()) {
