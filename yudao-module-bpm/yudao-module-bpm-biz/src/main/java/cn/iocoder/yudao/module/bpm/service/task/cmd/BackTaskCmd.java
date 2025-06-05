@@ -11,6 +11,7 @@ package cn.iocoder.yudao.module.bpm.service.task.cmd;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnModelConstants;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableJumpUtils;
 import com.google.common.collect.Sets;
+import lombok.extern.slf4j.Slf4j;
 import org.flowable.bpmn.model.FlowNode;
 import org.flowable.bpmn.model.Process;
 import org.flowable.bpmn.model.UserTask;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 /**
  * 任务自由跳转命令
  */
+@Slf4j
 public class BackTaskCmd implements Command<String>, Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -89,6 +91,9 @@ public class BackTaskCmd implements Command<String>, Serializable {
             }
         }
 
+        log.info("[BackTaskCmd] start: taskOrActivity={}, processInstanceId={}, sourceActivity={}, targetActivity={}",
+                taskIdOrActivityIdOrExecutionId, processInstanceId, sourceActivityId, targetActivityId);
+
         if (sourceActivityId == null) {
             throw new FlowableObjectNotFoundException("task " + taskIdOrActivityIdOrExecutionId + " doesn't exist", Task.class);
         }
@@ -141,6 +146,7 @@ public class BackTaskCmd implements Command<String>, Serializable {
         List<ExecutionEntity> realExecutions = getRealExecutions(commandContext, processInstanceId, executionId,
                 sourceRealActivityId, sourceRealAcitivtyIds);
         List<String> realExecutionIds = realExecutions.stream().map(ExecutionEntity::getId).collect(Collectors.toList());
+        log.info("[BackTaskCmd] moving executions {} to {}", realExecutionIds, targetRealActivityId);
         runtimeService.createChangeActivityStateBuilder().processInstanceId(processInstanceId)
                 .moveExecutionsToSingleActivityId(realExecutionIds, targetRealActivityId).changeState();
         if (targetRealSpecialGateway != null) {
@@ -198,7 +204,18 @@ public class BackTaskCmd implements Command<String>, Serializable {
         ExecutionEntity taskExecution = executionEntityManager.findById(taskExecutionId);
         List<ExecutionEntity> executions = executionEntityManager.findChildExecutionsByProcessInstanceId(processInstanceId);
         Set<String> parentExecutionIds = FlowableJumpUtils.getParentExecutionIdsByActivityId(executions, sourceRealActivityId);
-        String realParentExecutionId = FlowableJumpUtils.getParentExecutionIdFromParentIds(taskExecution, parentExecutionIds);
-        return executionEntityManager.findExecutionsByParentExecutionAndActivityIds(realParentExecutionId, activityIds);
+        String realParentExecutionId;
+        try {
+            realParentExecutionId = FlowableJumpUtils.getParentExecutionIdFromParentIds(taskExecution, parentExecutionIds);
+        } catch (FlowableException e) {
+            log.warn("[BackTaskCmd] parent execution not found for {} using task parent {}", taskExecutionId, taskExecution.getParentId());
+            realParentExecutionId = taskExecution.getParentId();
+        }
+        List<ExecutionEntity> realExecutions = executionEntityManager.findExecutionsByParentExecutionAndActivityIds(realParentExecutionId, activityIds);
+        if (realExecutions.isEmpty() && taskExecution != null) {
+            log.info("[BackTaskCmd] no executions found, fallback to current execution {}", taskExecutionId);
+            realExecutions = Collections.singletonList(taskExecution);
+        }
+        return realExecutions;
     }
 }
