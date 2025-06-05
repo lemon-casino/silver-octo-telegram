@@ -1,9 +1,10 @@
 # Love Journey Game
 
-This repository includes two Python scripts for celebrating your relationship:
+This repository includes three Python scripts for celebrating your relationship:
 
 - `love_journey.py` – a text-based treasure hunt of memories and wishes.
 - `love_journey_3d.py` – a small 3D version built with the Ursina game engine.
+- `city_walk_3d.py` – explore a procedurally generated city in first person.
 
 ## Running the Text Game
 
@@ -32,3 +33,15 @@ Then start the game:
 Move with the standard WASD keys and press `E` when near a stage to see
 its message. Feel free to expand the world with your own models and
 romantic surprises.
+
+## Running the City Game
+
+The city exploration game also relies on `ursina`. After installing the
+package, launch it with:
+
+```bash
+./city_walk_3d.py
+```
+
+Wander through a procedurally generated cityscape using the first-person
+controller.
