@@ -1189,7 +1189,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         taskService.addComment(task.getId(), instance.getId(),
                 BpmCommentTypeEnum.RETURN.getType(), reqVO.getReason());
         updateTaskStatusAndReason(task.getId(), BpmTaskStatusEnum.RETURN.getStatus(), reqVO.getReason());
-     log.info("当前节点 {}，目标节点{}",task.getId(),reqVO.getTargetTaskDefinitionKey());
+     log.info("任务id  {}，目标节点{}",task.getId(),reqVO.getTargetTaskDefinitionKey());
         managementService.executeCommand(new BackTaskCmd(runtimeService, task.getId(),  reqVO.getTargetTaskDefinitionKey()));
     }
 

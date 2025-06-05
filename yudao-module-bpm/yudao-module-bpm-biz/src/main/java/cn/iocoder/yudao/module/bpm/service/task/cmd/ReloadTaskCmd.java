@@ -200,6 +200,11 @@ public class ReloadTaskCmd implements Command<String>, Serializable {
         List<ExecutionEntity> executions = executionEntityManager.findChildExecutionsByProcessInstanceId(processInstanceId);
         Set<String> parentExecutionIds = FlowableJumpUtils.getParentExecutionIdsByActivityId(executions, sourceRealActivityId);
         String realParentExecutionId = FlowableJumpUtils.getParentExecutionIdFromParentIds(taskExecution, parentExecutionIds);
-        return executionEntityManager.findExecutionsByParentExecutionAndActivityIds(realParentExecutionId, activityIds);
+        List<ExecutionEntity>  executionEntity= executionEntityManager.findExecutionsByParentExecutionAndActivityIds(realParentExecutionId, activityIds);
+        if (executionEntity.isEmpty()) {
+            // 当未查询到符合条件的执行时，默认使用当前任务对应的执行，避免未能产生目标节点
+            executionEntity = Collections.singletonList(taskExecution);
+        }
+        return executionEntity;
     }
 }
