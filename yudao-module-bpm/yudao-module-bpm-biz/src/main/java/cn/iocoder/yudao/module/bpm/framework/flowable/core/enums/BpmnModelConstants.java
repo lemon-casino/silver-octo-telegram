@@ -20,6 +20,10 @@ public interface BpmnModelConstants {
      */
     String SPECIAL_GATEWAY_END_SUFFIX = "_end";
     /**
+     * 特殊网关 join 节点后缀
+     */
+    String SPECIAL_GATEWAY_JOIN_SUFFIX = "_join";
+    /**
      * BPMN 中的命名空间
      */
     String NAMESPACE = "http://flowable.org/bpmn";

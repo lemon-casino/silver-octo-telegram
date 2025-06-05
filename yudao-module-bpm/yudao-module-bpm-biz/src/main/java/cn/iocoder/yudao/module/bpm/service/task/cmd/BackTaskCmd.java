@@ -177,6 +177,10 @@ public class BackTaskCmd implements Command<String>, Serializable {
             String targetInSpecialGateway = targetInSpecialGatewayList.get(index);
             String targetInSpecialGatewayEndId = targetInSpecialGateway + BpmnModelConstants.SPECIAL_GATEWAY_END_SUFFIX;
             FlowNode targetInSpecialGatewayEnd = (FlowNode) process.getFlowElement(targetInSpecialGatewayEndId, true);
+            if (targetInSpecialGatewayEnd == null) {
+                targetInSpecialGatewayEndId = targetInSpecialGateway + BpmnModelConstants.SPECIAL_GATEWAY_JOIN_SUFFIX;
+                targetInSpecialGatewayEnd = (FlowNode) process.getFlowElement(targetInSpecialGatewayEndId, true);
+            }
             int nbrOfExecutionsToJoin = targetInSpecialGatewayEnd.getIncomingFlows().size();
             for (int i = 0; i < nbrOfExecutionsToJoin - 1; i++) {
                 ExecutionEntity childExecution = executionEntityManager.createChildExecution(parentExecutionEntity);
