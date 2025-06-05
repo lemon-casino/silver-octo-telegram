@@ -34,6 +34,7 @@ public class FlowableJumpUtils {
 
         public static final String SPECIAL_GATEWAY_BEGIN_SUFFIX = BpmnModelConstants.SPECIAL_GATEWAY_BEGIN_SUFFIX;
         public static final String SPECIAL_GATEWAY_END_SUFFIX = BpmnModelConstants.SPECIAL_GATEWAY_END_SUFFIX;
+        public static final String SPECIAL_GATEWAY_JOIN_SUFFIX = BpmnModelConstants.SPECIAL_GATEWAY_JOIN_SUFFIX;
         public static final String FLOWABLE_NAMESPACE = BpmnModelConstants.NAMESPACE;
 
         // ========== User 相关 ==========
@@ -166,14 +167,37 @@ public class FlowableJumpUtils {
             }
             Collection<FlowElement> flowelements = container.getFlowElements();
             for (FlowElement flowElement : flowelements) {
-                boolean isBeginSpecialGateway = flowElement.getId().endsWith(SPECIAL_GATEWAY_BEGIN_SUFFIX)
-                        && (flowElement instanceof ParallelGateway || flowElement instanceof InclusiveGateway || flowElement instanceof ComplexGateway);
-                if (isBeginSpecialGateway) {
-                    String gatewayBeginRealId = flowElement.getId();
-                    String gatewayId = gatewayBeginRealId.substring(0, gatewayBeginRealId.length() - 6);
-                    Set<String> gatewayIdContainFlowelements = specialGatewayElements.computeIfAbsent(gatewayId, k -> new HashSet<>());
-                    findElementsBetweenSpecialGateway(flowElement, gatewayId + SPECIAL_GATEWAY_END_SUFFIX, gatewayIdContainFlowelements);
-                } else if (flowElement instanceof SubProcess) {
+                boolean isGateway = flowElement instanceof ParallelGateway || flowElement instanceof InclusiveGateway || flowElement instanceof ComplexGateway;
+                if (isGateway) {
+                    String gatewayId = flowElement.getId();
+                    String endId = null;
+                    if (gatewayId.endsWith(SPECIAL_GATEWAY_BEGIN_SUFFIX)) {
+                        gatewayId = gatewayId.substring(0, gatewayId.length() - SPECIAL_GATEWAY_BEGIN_SUFFIX.length());
+                        endId = gatewayId + SPECIAL_GATEWAY_END_SUFFIX;
+                    } else {
+                        FlowElement joinElement = null;
+                        if (container instanceof Process) {
+                            joinElement = ((Process) container).getFlowElement(gatewayId + SPECIAL_GATEWAY_JOIN_SUFFIX);
+                            if (joinElement == null) {
+                                joinElement = ((Process) container).getFlowElement(gatewayId + SPECIAL_GATEWAY_END_SUFFIX);
+                            }
+                        } else if (container instanceof SubProcess) {
+                            joinElement = ((SubProcess) container).getFlowElement(gatewayId + SPECIAL_GATEWAY_JOIN_SUFFIX);
+                            if (joinElement == null) {
+                                joinElement = ((SubProcess) container).getFlowElement(gatewayId + SPECIAL_GATEWAY_END_SUFFIX);
+                            }
+                        }
+                        if (joinElement != null) {
+                            endId = joinElement.getId();
+                        }
+                    }
+                    if (endId != null) {
+                        Set<String> gatewayIdContainFlowelements = specialGatewayElements.computeIfAbsent(gatewayId, k -> new HashSet<>());
+                        findElementsBetweenSpecialGateway(flowElement, endId, gatewayIdContainFlowelements);
+                        continue;
+                    }
+                }
+                if (flowElement instanceof SubProcess) {
                     getSpecialGatewayElements((SubProcess) flowElement, specialGatewayElements);
                 }
             }
