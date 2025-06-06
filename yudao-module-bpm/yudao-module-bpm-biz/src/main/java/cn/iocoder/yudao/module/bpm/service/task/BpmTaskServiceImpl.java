@@ -1488,17 +1488,25 @@ public class BpmTaskServiceImpl implements BpmTaskService {
             // 检查是否启用工作时间计算
             BpmnModelUtils.WorkTimeConfig workTimeConfig = BpmnModelUtils.getWorkTimeConfig(userTaskElement);
             
-            if (workTimeConfig.isEnabled() && task.getDueDate() != null) {
+            if (workTimeConfig.isEnabled()) {
                 try {
-                    // 计算原始超时时长
                     LocalDateTime createTime = DateUtils.of(task.getCreateTime());
-                    LocalDateTime originalDueTime = DateUtils.of(task.getDueDate());
-                    Duration originalDuration = Duration.between(createTime, originalDueTime);
+                    Duration originalDuration = null;
+                    String workDurationStr = BpmnModelUtils.parseWorkTimeDuration(userTaskElement);
+                    if (StrUtil.isNotEmpty(workDurationStr)) {
+                        originalDuration = Duration.parse(workDurationStr);
+                    } else if (task.getDueDate() != null) {
+                        LocalDateTime originalDueTime = DateUtils.of(task.getDueDate());
+                        originalDuration = Duration.between(createTime, originalDueTime);
+                    }
 
-                    log.info("[processTaskCreated][taskId({}) 启用工作时间计算: 创建时间={}, 原始截止时间={}, 原始时长={}秒]",
-                            task.getId(), createTime, originalDueTime, originalDuration.toSeconds());
+                    if (originalDuration == null) {
+                        log.warn("[processTaskCreated][taskId({}) 无法获取工时时长，跳过计算]", task.getId());
+                        return;
+                    }
 
-                    // 使用工作时间服务重新计算工作时间到期点，不影响任务原始 dueDate
+                    log.info("[processTaskCreated][taskId({}) 启用工作时间计算: 创建时间={}, 时长={}秒]",
+                            task.getId(), createTime, originalDuration.toSeconds());
                     LocalDateTime workTimeDueTime = workTimeService.calculateDueTime(createTime, originalDuration, workTimeConfig.getType());
 
                     if (workTimeDueTime != null) {
@@ -1517,7 +1525,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                     log.error("[processTaskCreated][taskId({}) 工作时间计算异常]", task.getId(), e);
                 }
             } else {
-                log.debug("[processTaskCreated][taskId({}) 未启用工作时间计算或无截止时间]", task.getId());
+                log.debug("[processTaskCreated][taskId({}) 未启用工作时间计算]", task.getId());
             }
         }
 
