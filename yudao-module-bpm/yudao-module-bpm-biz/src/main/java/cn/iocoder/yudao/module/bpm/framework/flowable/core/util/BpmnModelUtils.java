@@ -430,6 +430,10 @@ public class BpmnModelUtils {
                 ObjUtil.isNotNull(workTimeEnable) ? workTimeEnable.toString() : Boolean.FALSE.toString());
     }
 
+    public static void addWorkTimeDuration(String duration, FlowElement flowElement) {
+        addExtensionElement(flowElement, USER_TASK_WORK_TIME_DURATION, duration);
+    }
+
     public static Boolean parseWorkTimeEnable(FlowElement flowElement) {
         if (flowElement == null) {
             return false;
@@ -439,6 +443,10 @@ public class BpmnModelUtils {
             return false;
         }
         return Convert.toBool(extensionElements.get(0).getElementText(), false);
+    }
+
+    public static String parseWorkTimeDuration(FlowElement flowElement) {
+        return parseExtensionElement(flowElement, USER_TASK_WORK_TIME_DURATION);
     }
 
 

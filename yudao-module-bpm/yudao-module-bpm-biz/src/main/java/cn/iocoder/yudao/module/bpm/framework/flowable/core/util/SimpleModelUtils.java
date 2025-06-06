@@ -405,9 +405,10 @@ public class SimpleModelUtils {
                 // 实际的工作时间计算将在任务创建时进行，边界事件将通过特殊逻辑处理
 //                log.info("[buildUserTaskTimeoutBoundaryEvent][用户任务({})启用工作时间计算，保存原始超时间隔: {}]",
 //                        userTask.getId(), timeoutHandler.getTimeDuration());
-                        
+
                 // 保存原始超时间隔到UserTask的扩展元素中，供processTaskTimeout使用
                 addExtensionElement(userTask, "originalTimeDuration", timeoutHandler.getTimeDuration());
+                addWorkTimeDuration(workTimeHandler.getTimeDuration(), boundaryEvent);
             }
             
             // 1.3 定义超时时间、最大提醒次数
@@ -475,13 +476,15 @@ public class SimpleModelUtils {
                                 String.valueOf(node.getTimeoutHandler().getMaxRemindCount()));
                     }
                 }
-                if (node.getWorkTimeHandler() != null) {
-                    addWorkTimeEnable(node.getWorkTimeHandler().getWorkTimeEnable(), userTask);
-                    if (Boolean.TRUE.equals(node.getWorkTimeHandler().getWorkTimeEnable())
-                            && node.getWorkTimeHandler().getWorkTimeType() != null) {
-                        addExtensionElement(userTask, USER_TASK_WORK_TIME_TYPE,
-                                String.valueOf(node.getWorkTimeHandler().getWorkTimeType()));
-                    }
+            }
+
+            if (node.getWorkTimeHandler() != null) {
+                addWorkTimeEnable(node.getWorkTimeHandler().getWorkTimeEnable(), userTask);
+                addWorkTimeDuration(node.getWorkTimeHandler().getTimeDuration(), userTask);
+                if (Boolean.TRUE.equals(node.getWorkTimeHandler().getWorkTimeEnable())
+                        && node.getWorkTimeHandler().getWorkTimeType() != null) {
+                    addExtensionElement(userTask, USER_TASK_WORK_TIME_TYPE,
+                            String.valueOf(node.getWorkTimeHandler().getWorkTimeType()));
                 }
             }
 
