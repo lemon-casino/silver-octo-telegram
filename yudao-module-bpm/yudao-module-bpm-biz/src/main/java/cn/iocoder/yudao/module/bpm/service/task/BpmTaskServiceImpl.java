@@ -1203,6 +1203,39 @@ public class BpmTaskServiceImpl implements BpmTaskService {
 
         log.info("任务id  {}，目标节点{}",task.getId(),reqVO.getTargetTaskDefinitionKey());
         managementService.executeCommand(new BackTaskCmd(runtimeService, task.getId(),  reqVO.getTargetTaskDefinitionKey()));
+        // 4.1 如果目标节点配置为自动审批，在事务提交后自动完成该任务
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (!ObjectUtil.equal(status, TransactionSynchronization.STATUS_COMMITTED)) {
+                    return;
+                }
+
+                BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(instance.getProcessDefinitionId());
+                FlowElement targetElement = BpmnModelUtils.getFlowElementById(bpmnModel, reqVO.getTargetTaskDefinitionKey());
+                Integer approveType = BpmnModelUtils.parseApproveType(targetElement);
+                if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.USER.getType())) {
+                    return;
+                }
+
+                Task targetTask = taskService.createTaskQuery()
+                        .processInstanceId(instance.getId())
+                        .taskDefinitionKey(reqVO.getTargetTaskDefinitionKey())
+                        .singleResult();
+                if (targetTask == null) {
+                    log.warn("[returnTask][processInstance({}) node({}) 未找到自动审批任务]", instance.getId(), reqVO.getTargetTaskDefinitionKey());
+                    return;
+                }
+
+                if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_APPROVE.getType())) {
+                    getSelf().approveTask(null, new BpmTaskApproveReqVO().setId(targetTask.getId())
+                            .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_APPROVE.getReason()));
+                } else if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_REJECT.getType())) {
+                    getSelf().rejectTask(null, new BpmTaskRejectReqVO().setId(targetTask.getId())
+                            .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_REJECT.getReason()));
+                }
+            }
+        });
     }
 
     @Override
