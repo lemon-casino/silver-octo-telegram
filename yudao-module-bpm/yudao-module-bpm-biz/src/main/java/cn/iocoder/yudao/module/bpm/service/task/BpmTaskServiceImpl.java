@@ -23,6 +23,7 @@ import cn.iocoder.yudao.module.bpm.enums.task.BpmTaskStatusEnum;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnModelConstants;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnVariableConstants;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.BpmnModelUtils;
+import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmTaskCandidateStrategyEnum;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableUtils;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmFormService;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmModelService;
@@ -954,6 +955,9 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         } else {
             taskService.complete(task.getId());
         }
+        // 清理退回标识，恢复节点的自动审批能力
+        runtimeService.removeVariable(task.getProcessInstanceId(),
+                String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, task.getTaskDefinitionKey()));
 
         //判断当前节点userTask是否在并行网关或者包容网关内或者是多实例的 如果是
 
@@ -1189,6 +1193,16 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         taskService.addComment(task.getId(), instance.getId(),
                 BpmCommentTypeEnum.RETURN.getType(), reqVO.getReason());
         updateTaskStatusAndReason(task.getId(), BpmTaskStatusEnum.RETURN.getStatus(), reqVO.getReason());
+        // 如果退回的节点由发起人审批，则标记避免自动通过
+        BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(instance.getProcessDefinitionId());
+        FlowElement targetElement = BpmnModelUtils.getFlowElementById(bpmnModel, reqVO.getTargetTaskDefinitionKey());
+        Integer candidateStrategy = BpmnModelUtils.parseCandidateStrategy(targetElement);
+        if (ObjectUtil.equal(candidateStrategy, BpmTaskCandidateStrategyEnum.START_USER.getStrategy())) {
+            runtimeService.setVariable(instance.getId(),
+                    String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, reqVO.getTargetTaskDefinitionKey()),
+                    Boolean.TRUE);
+        }
+
      log.info("任务id  {}，目标节点{}",task.getId(),reqVO.getTargetTaskDefinitionKey());
         managementService.executeCommand(new BackTaskCmd(runtimeService, task.getId(),  reqVO.getTargetTaskDefinitionKey()));
     }
@@ -1556,6 +1570,13 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                         && getTask(task.getId()) == null) {
                     return;
                 }
+                // 判断是否是退回节点：如果是，则不做任何自动审批处理
+                Boolean returnTaskFlag = runtimeService.getVariable(task.getProcessInstanceId(),
+                        String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, task.getTaskDefinitionKey()), Boolean.class);
+                if (ObjUtil.equal(returnTaskFlag, Boolean.TRUE)) {
+                    return;
+                }
+
                 // 特殊情况一：【人工审核】审批人为空，根据配置是否要自动通过、自动拒绝
                 if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.USER.getType())) {
                     // 如果有审批人、或者拥有人，则说明不满足情况一，不自动通过、不自动拒绝
@@ -1651,13 +1672,17 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                     return;
                 }
 
+                // 标记是否为退回任务，退回的任务不进行任何自动审批
+                Boolean returnTaskFlag = runtimeService.getVariable(processInstance.getProcessInstanceId(),
+                        String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, task.getTaskDefinitionKey()), Boolean.class);
+
                 // 自动去重，通过自动审批的方式 TODO @芋艿 驳回的情况得考虑一下；@lesan：驳回后，又自动审批么？
                 BpmProcessDefinitionInfoDO processDefinitionInfo = bpmProcessDefinitionService.getProcessDefinitionInfo(task.getProcessDefinitionId());
                 if (processDefinitionInfo == null) {
                     log.error("[processTaskAssigned][taskId({}) 没有找到流程定义({})]", task.getId(), task.getProcessDefinitionId());
                     return;
                 }
-                if (processDefinitionInfo.getAutoApprovalType() != null) {
+                if (!ObjUtil.equal(returnTaskFlag, Boolean.TRUE) && processDefinitionInfo.getAutoApprovalType() != null) {
                     HistoricTaskInstanceQuery sameAssigneeQuery = historyService.createHistoricTaskInstanceQuery()
                             .processInstanceId(task.getProcessInstanceId())
                             .taskAssignee(task.getAssignee()) // 相同审批人
@@ -1687,12 +1712,10 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                 }
 
                 // 审批人与提交人为同一人时，根据 BpmUserTaskAssignStartUserHandlerTypeEnum 策略进行处理
-                if (StrUtil.equals(task.getAssignee(), String.valueOf(FlowableUtils.getProcessInstanceStartUserId(processInstance)))) {
+                if (!ObjUtil.equal(returnTaskFlag, Boolean.TRUE) &&
+                        StrUtil.equals(task.getAssignee(), String.valueOf(FlowableUtils.getProcessInstanceStartUserId(processInstance)))) {
                     // 判断是否为退回或者驳回：如果是退回或者驳回不走这个策略
                     // TODO 芋艿：【优化】未来有没更好的判断方式？！另外，还要考虑清理机制。就是说，下次处理了之后，就移除这个标识
-                    Boolean returnTaskFlag = runtimeService.getVariable(processInstance.getProcessInstanceId(),
-                            String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, task.getTaskDefinitionKey()), Boolean.class);
-                    if (ObjUtil.notEqual(returnTaskFlag, Boolean.TRUE)) {
                         BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(processInstance.getProcessDefinitionId());
                         if (bpmnModel == null) {
                             log.error("[processTaskAssigned][taskId({}) 没有找到流程模型]", task.getId());
