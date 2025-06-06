@@ -13,12 +13,12 @@ import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmProcessDefinitio
 import cn.iocoder.yudao.module.bpm.enums.task.BpmCommentTypeEnum;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.BpmnModelUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableUtils;
+import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnVariableConstants;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmFormService;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmModelService;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmProcessDefinitionService;
 import cn.iocoder.yudao.module.bpm.service.task.BpmProcessInstanceService;
 import cn.iocoder.yudao.module.bpm.service.task.BpmTaskService;
-import cn.iocoder.yudao.module.bpm.service.worktime.BpmWorkTimeService;
 import cn.iocoder.yudao.module.system.api.dept.DeptApi;
 import cn.iocoder.yudao.module.system.api.dept.dto.DeptRespDTO;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
@@ -74,8 +74,6 @@ public class BpmTaskController {
     private DeptApi deptApi;
     @Resource
     private BpmModelService modelService;
-    @Resource
-    private BpmWorkTimeService workTimeService;
     @GetMapping("todo-page")
     @Operation(summary = "获取 Todo 待办任务分页")
     @PreAuthorize("@ss.hasPermission('bpm:task:query')")
@@ -299,7 +297,6 @@ public class BpmTaskController {
         Map<Long, AdminUserRespDTO> userMap = adminUserApi.getUserMap(userIds);
         Map<Long, DeptRespDTO> deptMap = deptApi.getDeptMap(
                 convertSet(userMap.values(), AdminUserRespDTO::getDeptId));
-        System.out.println(BpmTaskConvert.INSTANCE.buildTaskListByParentTaskId(tasks, userMap, deptMap).toString());
         // 转换为前端所需格式并返回
         return success(BpmTaskConvert.INSTANCE.buildTaskListByParentTaskId(tasks, userMap, deptMap));
     }
@@ -334,22 +331,11 @@ public class BpmTaskController {
                         continue;
                     }
                     
-                    // 对于启用工作时间计算的任务，直接使用task.getDueDate()
-                    // 因为在任务创建时已经按工作时间重新计算了dueDate
-                    if (t.getDueDate() != null) {
-                        BpmnModel model = modelService.getBpmnModelByDefinitionId(t.getProcessDefinitionId());
-                        FlowElement element = BpmnModelUtils.getFlowElementById(model, t.getTaskDefinitionKey());
-                        Boolean workTimeEnable = BpmnModelUtils.parseWorkTimeEnable(element);
-                        
-                        if (Boolean.TRUE.equals(workTimeEnable)) {
-                            // 工作时间模式：直接使用已计算的dueDate，不需要重新计算
-                            wrapper.setDueTime(DateUtils.of(t.getDueDate()));
-                            log.debug("[getRunningTaskList][任务({})启用工作时间，使用已计算的截止时间: {}]", 
-                                    t.getId(), DateUtils.of(t.getDueDate()));
-                        } else {
-                            // 标准模式：使用原始dueDate
-                            wrapper.setDueTime(DateUtils.of(t.getDueDate()));
-                        }
+                    Object workDueDate = t.getTaskLocalVariables().get(BpmnVariableConstants.TASK_VARIABLE_WORK_DUE_DATE);
+                    if (workDueDate instanceof Long) {
+                        wrapper.setDueTime(DateUtils.of(new Date((Long) workDueDate)));
+                    } else if (t.getDueDate() != null) {
+                        wrapper.setDueTime(DateUtils.of(t.getDueDate()));
                     }
                 }
             }
