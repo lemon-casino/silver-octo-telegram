@@ -12,6 +12,7 @@ import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmTaskCandidat
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnModelConstants;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.listener.BpmCopyTaskDelegate;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.listener.BpmTriggerTaskDelegate;
+import cn.iocoder.yudao.module.bpm.framework.flowable.core.listener.BpmAutoTaskDelegate;
 import org.flowable.bpmn.BpmnAutoLayout;
 import org.flowable.bpmn.constants.BpmnXMLConstants;
 import org.flowable.bpmn.model.Process;
@@ -361,6 +362,12 @@ public class SimpleModelUtils {
 
         @Override
         public List<FlowElement> convertList(BpmSimpleModelNodeVO node) {
+            // 如果审批类型为自动处理，则使用 ServiceTask 实现自动通过/拒绝
+            if (ObjectUtil.notEqual(node.getApproveType(), BpmUserTaskApproveTypeEnum.USER.getType())) {
+                ServiceTask serviceTask = buildAutoServiceTask(node);
+                return Collections.singletonList(serviceTask);
+            }
+
             List<FlowElement> flowElements = new ArrayList<>(2);
             // 1. 构建用户任务
             UserTask userTask = buildBpmnUserTask(node);
@@ -436,6 +443,18 @@ public class SimpleModelUtils {
             }
             
             return boundaryEvent;
+        }
+
+        private ServiceTask buildAutoServiceTask(BpmSimpleModelNodeVO node) {
+            ServiceTask serviceTask = new ServiceTask();
+            serviceTask.setId(node.getId());
+            serviceTask.setName(node.getName());
+            serviceTask.setImplementationType(ImplementationType.IMPLEMENTATION_TYPE_DELEGATEEXPRESSION);
+            serviceTask.setImplementation("${" + BpmAutoTaskDelegate.BEAN_NAME + "}");
+            // 标记节点类型和审批类型，便于后续查询
+            addNodeType(node.getType(), serviceTask);
+            addExtensionElement(serviceTask, USER_TASK_APPROVE_TYPE, node.getApproveType());
+            return serviceTask;
         }
 
         private UserTask buildBpmnUserTask(BpmSimpleModelNodeVO node) {
