@@ -95,6 +95,11 @@ public class BpmnVariableConstants {
 
     /**
      * 任务变量 - 工作时间计算得到的到期时间戳
+     *
+     * <p>
+     * 由于 {@link org.flowable.task.api.Task#setDueDate(java.util.Date)} 只接收
+     * {@link java.util.Date} 类型，为避免时区问题，这里统一保存为 epoch milli
+     * 秒形式，保存在任务的本地变量中。
      */
     public static final String TASK_VARIABLE_WORK_DUE_DATE = "WORK_DUE_DATE";
 
