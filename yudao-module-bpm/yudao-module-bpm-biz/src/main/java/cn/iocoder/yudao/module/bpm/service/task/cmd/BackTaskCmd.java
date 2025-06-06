@@ -120,10 +120,10 @@ public class BackTaskCmd implements Command<String>, Serializable {
                 targetFlowElement.getName(), targetFlowElement.getId());
         
         // 验证目标节点是否可达
-        if (!FlowableJumpUtils.isReachable(process, targetFlowElement, sourceFlowElement)) {
+   /*     if (!FlowableJumpUtils.isReachable(process, targetFlowElement, sourceFlowElement)) {
             log.error("[BackTaskCmd] target activity {} is not reachable from {}", targetActivityId, sourceActivityId);
             throw new FlowableException("Cannot back to [" + targetActivityId + "]");
-        }
+        }*/
         
         // 获取执行实体管理器，用于获取更多执行实体信息
         ExecutionEntityManager executionEntityManager = CommandContextUtil.getExecutionEntityManager(commandContext);

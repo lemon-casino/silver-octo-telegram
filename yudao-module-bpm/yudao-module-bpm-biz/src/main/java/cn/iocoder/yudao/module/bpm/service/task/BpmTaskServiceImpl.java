@@ -20,17 +20,15 @@ import cn.iocoder.yudao.module.bpm.enums.task.BpmCommentTypeEnum;
 import cn.iocoder.yudao.module.bpm.enums.task.BpmReasonEnum;
 import cn.iocoder.yudao.module.bpm.enums.task.BpmTaskSignTypeEnum;
 import cn.iocoder.yudao.module.bpm.enums.task.BpmTaskStatusEnum;
+import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmTaskCandidateStrategyEnum;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnModelConstants;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnVariableConstants;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.BpmnModelUtils;
-import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmTaskCandidateStrategyEnum;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableUtils;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmFormService;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmModelService;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmProcessDefinitionService;
 import cn.iocoder.yudao.module.bpm.service.message.BpmMessageService;
-import cn.iocoder.yudao.module.bpm.service.message.dto.BpmMessageSendWhenProcessInstanceApproveReqDTO;
-import cn.iocoder.yudao.module.bpm.service.message.dto.BpmMessageSendWhenProcessInstanceRejectReqDTO;
 import cn.iocoder.yudao.module.bpm.service.message.dto.BpmMessageSendWhenTaskTimeoutReqDTO;
 import cn.iocoder.yudao.module.bpm.service.task.cmd.BackTaskCmd;
 import cn.iocoder.yudao.module.bpm.service.task.dto.BpmMultiInstanceMessageDTO;
@@ -52,7 +50,6 @@ import org.flowable.engine.history.HistoricActivityInstance;
 import org.flowable.engine.history.HistoricProcessInstance;
 import org.flowable.engine.runtime.Execution;
 import org.flowable.engine.runtime.ProcessInstance;
-import org.flowable.job.api.Job;
 import org.flowable.task.api.DelegationState;
 import org.flowable.task.api.Task;
 import org.flowable.task.api.TaskInfo;
@@ -1198,12 +1195,13 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         FlowElement targetElement = BpmnModelUtils.getFlowElementById(bpmnModel, reqVO.getTargetTaskDefinitionKey());
         Integer candidateStrategy = BpmnModelUtils.parseCandidateStrategy(targetElement);
         if (ObjectUtil.equal(candidateStrategy, BpmTaskCandidateStrategyEnum.START_USER.getStrategy())) {
+            System.out.println("来到这里");
             runtimeService.setVariable(instance.getId(),
                     String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, reqVO.getTargetTaskDefinitionKey()),
                     Boolean.TRUE);
         }
 
-     log.info("任务id  {}，目标节点{}",task.getId(),reqVO.getTargetTaskDefinitionKey());
+        log.info("任务id  {}，目标节点{}",task.getId(),reqVO.getTargetTaskDefinitionKey());
         managementService.executeCommand(new BackTaskCmd(runtimeService, task.getId(),  reqVO.getTargetTaskDefinitionKey()));
     }
 
@@ -1498,10 +1496,10 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         if (processInstance != null) {
             BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(processInstance.getProcessDefinitionId());
             FlowElement userTaskElement = BpmnModelUtils.getFlowElementById(bpmnModel, task.getTaskDefinitionKey());
-            
+
             // 检查是否启用工作时间计算
             BpmnModelUtils.WorkTimeConfig workTimeConfig = BpmnModelUtils.getWorkTimeConfig(userTaskElement);
-            
+
             if (workTimeConfig.isEnabled()) {
                 try {
                     LocalDateTime createTime = DateUtils.of(task.getCreateTime());
@@ -1570,13 +1568,6 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                         && getTask(task.getId()) == null) {
                     return;
                 }
-                // 判断是否是退回节点：如果是，则不做任何自动审批处理
-                Boolean returnTaskFlag = runtimeService.getVariable(task.getProcessInstanceId(),
-                        String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, task.getTaskDefinitionKey()), Boolean.class);
-                if (ObjUtil.equal(returnTaskFlag, Boolean.TRUE)) {
-                    return;
-                }
-
                 // 特殊情况一：【人工审核】审批人为空，根据配置是否要自动通过、自动拒绝
                 if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.USER.getType())) {
                     // 如果有审批人、或者拥有人，则说明不满足情况一，不自动通过、不自动拒绝
@@ -1672,17 +1663,13 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                     return;
                 }
 
-                // 标记是否为退回任务，退回的任务不进行任何自动审批
-                Boolean returnTaskFlag = runtimeService.getVariable(processInstance.getProcessInstanceId(),
-                        String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, task.getTaskDefinitionKey()), Boolean.class);
-
                 // 自动去重，通过自动审批的方式 TODO @芋艿 驳回的情况得考虑一下；@lesan：驳回后，又自动审批么？
                 BpmProcessDefinitionInfoDO processDefinitionInfo = bpmProcessDefinitionService.getProcessDefinitionInfo(task.getProcessDefinitionId());
                 if (processDefinitionInfo == null) {
                     log.error("[processTaskAssigned][taskId({}) 没有找到流程定义({})]", task.getId(), task.getProcessDefinitionId());
                     return;
                 }
-                if (!ObjUtil.equal(returnTaskFlag, Boolean.TRUE) && processDefinitionInfo.getAutoApprovalType() != null) {
+                if (processDefinitionInfo.getAutoApprovalType() != null) {
                     HistoricTaskInstanceQuery sameAssigneeQuery = historyService.createHistoricTaskInstanceQuery()
                             .processInstanceId(task.getProcessInstanceId())
                             .taskAssignee(task.getAssignee()) // 相同审批人
@@ -1712,10 +1699,12 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                 }
 
                 // 审批人与提交人为同一人时，根据 BpmUserTaskAssignStartUserHandlerTypeEnum 策略进行处理
-                if (!ObjUtil.equal(returnTaskFlag, Boolean.TRUE) &&
-                        StrUtil.equals(task.getAssignee(), String.valueOf(FlowableUtils.getProcessInstanceStartUserId(processInstance)))) {
+                if (StrUtil.equals(task.getAssignee(), String.valueOf(FlowableUtils.getProcessInstanceStartUserId(processInstance)))) {
                     // 判断是否为退回或者驳回：如果是退回或者驳回不走这个策略
                     // TODO 芋艿：【优化】未来有没更好的判断方式？！另外，还要考虑清理机制。就是说，下次处理了之后，就移除这个标识
+                    Boolean returnTaskFlag = runtimeService.getVariable(processInstance.getProcessInstanceId(),
+                            String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, task.getTaskDefinitionKey()), Boolean.class);
+                    if (ObjUtil.notEqual(returnTaskFlag, Boolean.TRUE)) {
                         BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(processInstance.getProcessDefinitionId());
                         if (bpmnModel == null) {
                             log.error("[processTaskAssigned][taskId({}) 没有找到流程模型]", task.getId());
@@ -1805,8 +1794,8 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         // 1. 获取流程实例和运行中的任务
         ProcessInstance processInstance = processInstanceService.getProcessInstance(processInstanceId);
         List<Task> taskList = getRunningTaskListByProcessInstanceId(processInstanceId, true, taskDefineKey);
-        
-        log.info("[processTaskTimeout][流程实例({})任务定义({})开始处理超时，找到{}个运行中的任务]", 
+
+        log.info("[processTaskTimeout][流程实例({})任务定义({})开始处理超时，找到{}个运行中的任务]",
                 processInstanceId, taskDefineKey, taskList.size());
 
         // 2. 遍历任务执行超时处理
@@ -1822,8 +1811,8 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     /**
      * 执行具体的超时处理逻辑
      */
-    private void executeTimeoutHandler(Task task, ProcessInstance processInstance, 
-                                     FlowElement userTaskElement, Integer handlerType) {
+    private void executeTimeoutHandler(Task task, ProcessInstance processInstance,
+                                       FlowElement userTaskElement, Integer handlerType) {
         // 情况一：自动提醒
         if (Objects.equals(handlerType, BpmUserTaskTimeoutHandlerTypeEnum.REMINDER.getType())) {
             handleTimeoutReminder(task, processInstance, userTaskElement);
@@ -1868,7 +1857,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
 
         // 检查是否设置了超时跳转目标节点
         String targetTaskId = BpmnModelUtils.parseTimeoutReturnNodeId(userTaskElement);
-        
+
         if (StrUtil.isNotEmpty(targetTaskId)) {
             String taskKey = task.getId();
             int reminderCount = taskReminderCountMap.getOrDefault(taskKey, 0) + 1;
@@ -2026,102 +2015,9 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         return message;
     }
 
-    /**
-     * 将会签节点信息转换为审批通过消息列表
-     *
-     * @param message 会签节点信息
-     * @return 审批通过消息列表
-     */
-    private List<BpmMessageSendWhenProcessInstanceApproveReqDTO> convertMultiInstanceMessageToApproveMessages(
-            BpmMultiInstanceMessageDTO message) {
-        return message.getApproveUserIds().stream()
-                .map(userId -> new BpmMessageSendWhenProcessInstanceApproveReqDTO()
-                        .setProcessInstanceId(message.getProcessInstanceId())
-                        .setProcessInstanceName(message.getProcessInstanceName())
-                        .setStartUserId(userId))
-                .collect(Collectors.toList());
-    }
 
-    /**
-     * 将会签节点信息转换为审批拒绝消息列表
-     *
-     * @param message 会签节点信息
-     * @return 审批拒绝消息列表
-     */
-    private List<BpmMessageSendWhenProcessInstanceRejectReqDTO> convertMultiInstanceMessageToRejectMessages(
-            BpmMultiInstanceMessageDTO message) {
-        return message.getRejectUserIds().stream()
-                .map(userId -> new BpmMessageSendWhenProcessInstanceRejectReqDTO()
-                        .setProcessInstanceId(message.getProcessInstanceId())
-                        .setProcessInstanceName(message.getProcessInstanceName())
-                        .setStartUserId(userId)
-                        .setReason(message.getReason()))
-                .collect(Collectors.toList());
-    }
 
-    /**
-     * 处理边界事件定时器的工作时间调整
-     * 
-     * @param task 任务
-     * @param bpmnModel 流程模型
-     * @param createTime 任务创建时间
-     * @param workTimeDueTime 工作时间计算后的截止时间
-     * @param workTimeConfig 工作时间配置
-     */
-    private void handleBoundaryEventTimerAdjustment(Task task, BpmnModel bpmnModel, 
-                                                  LocalDateTime createTime, LocalDateTime workTimeDueTime,
-                                                  BpmnModelUtils.WorkTimeConfig workTimeConfig) {
-        try {
-            // 查找与当前任务关联的边界事件
-            List<BoundaryEvent> boundaryEvents = bpmnModel.getMainProcess().findFlowElementsOfType(BoundaryEvent.class);
-            for (BoundaryEvent boundaryEvent : boundaryEvents) {
-                // 检查是否是当前任务的边界事件，且启用了工作时间计算
-                if (task.getTaskDefinitionKey().equals(boundaryEvent.getAttachedToRefId())) {
-                    Boolean boundaryWorkTimeEnable = BpmnModelUtils.parseWorkTimeEnable(boundaryEvent);
-                    Integer boundaryWorkTimeType = BpmnModelUtils.parseWorkTimeType(boundaryEvent);
-                    
-                    if (Boolean.TRUE.equals(boundaryWorkTimeEnable) && boundaryWorkTimeType != null) {
-                        // 计算工作时间延迟
-                        Duration workTimeDuration = Duration.between(createTime, workTimeDueTime);
-                        
-                        // 取消原有的定时器并创建新的定时器
-                        adjustBoundaryEventTimer(task.getProcessInstanceId(), boundaryEvent.getId(), workTimeDuration);
-                        
-                        log.info("[handleBoundaryEventTimerAdjustment][任务({})的边界事件({})定时器已调整为工作时间: {}]", 
-                                task.getId(), boundaryEvent.getId(), workTimeDuration);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("[handleBoundaryEventTimerAdjustment][任务({})边界事件定时器调整失败]", task.getId(), e);
-        }
-    }
-    
-    /**
-     * 调整边界事件的定时器
-     * 
-     * @param processInstanceId 流程实例ID
-     * @param boundaryEventId 边界事件ID
-     * @param newDuration 新的持续时间
-     */
-    private void adjustBoundaryEventTimer(String processInstanceId, String boundaryEventId, Duration newDuration) {
-        try {
-            // 查找当前边界事件的Job
-            List<Job> jobs = managementService.createJobQuery()
-                    .processInstanceId(processInstanceId)
-                    .list();
-                    
-            for (Job job : jobs) {
-                // 这里需要判断job是否属于指定的边界事件
-                // 由于Flowable的Job不直接暴露边界事件ID，需要通过其他方式判断
-                log.debug("[adjustBoundaryEventTimer][找到Job: id={}, dueDate={}]", job.getId(), job.getDuedate());
-                
-                // 注意：这里的实现比较复杂，需要根据具体的Flowable版本和配置调整
-                // 暂时记录日志，具体的Job调整逻辑可能需要更深入的Flowable内部机制
-            }
-        } catch (Exception e) {
-            log.error("[adjustBoundaryEventTimer][调整边界事件({})定时器失败]", boundaryEventId, e);
-        }
-    }
+
+
 
 }
