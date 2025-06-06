@@ -368,7 +368,7 @@ public class SimpleModelUtils {
 
             // 2. 添加用户任务的 Timer Boundary Event, 用于任务的审批超时处理
             if (node.getTimeoutHandler() != null && node.getTimeoutHandler().getEnable()) {
-                BoundaryEvent boundaryEvent = buildUserTaskTimeoutBoundaryEvent(userTask, node.getTimeoutHandler());
+                BoundaryEvent boundaryEvent = buildUserTaskTimeoutBoundaryEvent(userTask, node.getTimeoutHandler(), node.getWorkTimeHandler());
                 flowElements.add(boundaryEvent);
             }
             return flowElements;
@@ -387,7 +387,8 @@ public class SimpleModelUtils {
          * @return BoundaryEvent 超时事件
          */
         private BoundaryEvent buildUserTaskTimeoutBoundaryEvent(UserTask userTask,
-                                                                BpmSimpleModelNodeVO.TimeoutHandler timeoutHandler) {
+                                                                BpmSimpleModelNodeVO.TimeoutHandler timeoutHandler,
+                                                                BpmSimpleModelNodeVO.WorkTimeHandler workTimeHandler) {
             // 1.1 定时器边界事件
             BoundaryEvent boundaryEvent = new BoundaryEvent();
             boundaryEvent.setId("Event-" + IdUtil.fastUUID());
@@ -398,14 +399,16 @@ public class SimpleModelUtils {
             String actualTimeDuration = timeoutHandler.getTimeDuration();
             
             // 如果启用了工作时间计算，需要特殊处理
-            if (Boolean.TRUE.equals(timeoutHandler.getWorkTimeEnable()) && timeoutHandler.getWorkTimeType() != null) {
+            if (workTimeHandler != null && Boolean.TRUE.equals(workTimeHandler.getWorkTimeEnable())
+                    && workTimeHandler.getWorkTimeType() != null) {
                 // 注意：边界事件的工作时间计算需要在运行时进行，此处保持原始时间
                 // 实际的工作时间计算将在任务创建时进行，边界事件将通过特殊逻辑处理
 //                log.info("[buildUserTaskTimeoutBoundaryEvent][用户任务({})启用工作时间计算，保存原始超时间隔: {}]",
 //                        userTask.getId(), timeoutHandler.getTimeDuration());
-                        
+
                 // 保存原始超时间隔到UserTask的扩展元素中，供processTaskTimeout使用
                 addExtensionElement(userTask, "originalTimeDuration", timeoutHandler.getTimeDuration());
+                addWorkTimeDuration(workTimeHandler.getTimeDuration(), boundaryEvent);
             }
             
             // 1.3 定义超时时间、最大提醒次数
@@ -424,11 +427,11 @@ public class SimpleModelUtils {
             addExtensionElement(boundaryEvent, USER_TASK_TIMEOUT_HANDLER_TYPE, timeoutHandler.getType());
             
             // 2.3 如果启用工作时间，添加相关扩展元素供后续处理使用
-            if (Boolean.TRUE.equals(timeoutHandler.getWorkTimeEnable())) {
+            if (workTimeHandler != null && Boolean.TRUE.equals(workTimeHandler.getWorkTimeEnable())) {
                 addExtensionElement(boundaryEvent, USER_TASK_WORK_TIME_ENABLE, "true");
-                if (timeoutHandler.getWorkTimeType() != null) {
-                    addExtensionElement(boundaryEvent, USER_TASK_WORK_TIME_TYPE, 
-                            String.valueOf(timeoutHandler.getWorkTimeType()));
+                if (workTimeHandler.getWorkTimeType() != null) {
+                    addExtensionElement(boundaryEvent, USER_TASK_WORK_TIME_TYPE,
+                            String.valueOf(workTimeHandler.getWorkTimeType()));
                 }
             }
             
@@ -469,15 +472,19 @@ public class SimpleModelUtils {
                     // 添加自动跳转前的最大提醒次数
                     if (Objects.equals(BpmUserTaskTimeoutHandlerTypeEnum.REMINDER.getType(), node.getTimeoutHandler().getType()) &&
                             node.getTimeoutHandler().getMaxRemindCount() != null) {
-                        addExtensionElement(userTask, USER_TASK_TIMEOUT_JUMP_MAX_REMIND_COUNT, 
+                        addExtensionElement(userTask, USER_TASK_TIMEOUT_JUMP_MAX_REMIND_COUNT,
                                 String.valueOf(node.getTimeoutHandler().getMaxRemindCount()));
                     }
                 }
-                addWorkTimeEnable(node.getTimeoutHandler().getWorkTimeEnable(), userTask);
-                if (Boolean.TRUE.equals(node.getTimeoutHandler().getWorkTimeEnable())
-                        && node.getTimeoutHandler().getWorkTimeType() != null) {
+            }
+
+            if (node.getWorkTimeHandler() != null) {
+                addWorkTimeEnable(node.getWorkTimeHandler().getWorkTimeEnable(), userTask);
+                addWorkTimeDuration(node.getWorkTimeHandler().getTimeDuration(), userTask);
+                if (Boolean.TRUE.equals(node.getWorkTimeHandler().getWorkTimeEnable())
+                        && node.getWorkTimeHandler().getWorkTimeType() != null) {
                     addExtensionElement(userTask, USER_TASK_WORK_TIME_TYPE,
-                            String.valueOf(node.getTimeoutHandler().getWorkTimeType()));
+                            String.valueOf(node.getWorkTimeHandler().getWorkTimeType()));
                 }
             }
 

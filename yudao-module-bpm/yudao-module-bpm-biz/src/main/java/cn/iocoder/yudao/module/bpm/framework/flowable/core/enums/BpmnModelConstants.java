@@ -172,6 +172,10 @@ public interface BpmnModelConstants {
      * BPMN ExtensionElement 的扩展属性，用于标记是否按照工作时间计算超时
      */
     String USER_TASK_WORK_TIME_ENABLE = "workTimeEnable";
+    /**
+     * BPMN ExtensionElement 的扩展属性，用于标记工时时长表达式
+     */
+    String USER_TASK_WORK_TIME_DURATION = "workTimeDuration";
 
 
 }

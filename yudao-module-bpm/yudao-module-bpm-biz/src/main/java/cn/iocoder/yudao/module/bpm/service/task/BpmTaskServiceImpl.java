@@ -1488,44 +1488,46 @@ public class BpmTaskServiceImpl implements BpmTaskService {
             // 检查是否启用工作时间计算
             BpmnModelUtils.WorkTimeConfig workTimeConfig = BpmnModelUtils.getWorkTimeConfig(userTaskElement);
             
-            if (workTimeConfig.isEnabled() && task.getDueDate() != null) {
+            if (workTimeConfig.isEnabled()) {
                 try {
-                    // 计算原始超时时长
                     LocalDateTime createTime = DateUtils.of(task.getCreateTime());
-                    LocalDateTime originalDueTime = DateUtils.of(task.getDueDate());
-                    Duration originalDuration = Duration.between(createTime, originalDueTime);
-                    
-                    log.info("[processTaskCreated][taskId({}) 启用工作时间计算: 创建时间={}, 原始截止时间={}, 原始时长={}秒, 纳秒精度={}]", 
-                            task.getId(), createTime, originalDueTime, originalDuration.toSeconds(), originalDuration.toNanos() % 1_000_000_000L);
-                    
-                    // 使用工作时间服务重新计算截止时间
+                    Duration originalDuration = null;
+
+                    String workDurationStr = BpmnModelUtils.parseWorkTimeDuration(userTaskElement);
+                    if (StrUtil.isNotEmpty(workDurationStr)) {
+                        originalDuration = Duration.parse(workDurationStr);
+                    } else if (task.getDueDate() != null) {
+                        LocalDateTime originalDueTime = DateUtils.of(task.getDueDate());
+                        originalDuration = Duration.between(createTime, originalDueTime);
+                    }
+
+                    if (originalDuration == null) {
+                        log.warn("[processTaskCreated][taskId({}) 无法获取工时时长，跳过计算]", task.getId());
+                        return;
+                    }
+
+                    log.info("[processTaskCreated][taskId({}) 启用工作时间计算: 创建时间={}, 时长={}秒]",
+                            task.getId(), createTime, originalDuration.toSeconds());
+
                     LocalDateTime workTimeDueTime = workTimeService.calculateDueTime(createTime, originalDuration, workTimeConfig.getType());
-                    
+
                     if (workTimeDueTime != null) {
-                        // 更新任务的截止时间
-                        taskService.setDueDate(task.getId(), Date.from(workTimeDueTime.atZone(ZoneId.systemDefault()).toInstant()));
-                        
-                        Duration extension = Duration.between(originalDueTime, workTimeDueTime);
-                        log.info("[processTaskCreated][taskId({}) 工作时间计算完成: 原始截止时间={}, 工作时间截止时间={}, 延长了{}]", 
-                                task.getId(), originalDueTime, workTimeDueTime, extension);
-                        
-                        // 记录工作时间计算信息到流程变量，供后续超时处理使用
-                        runtimeService.setVariable(task.getExecutionId(), "worktime_original_duration_" + task.getId(), 
-                                originalDuration.toString());
-                        runtimeService.setVariable(task.getExecutionId(), "worktime_calculated_due_time_" + task.getId(), 
-                                workTimeDueTime);
-                                
+                        // 保存工作时间到期时间(时间戳)到任务变量
+                        long dueTs = workTimeDueTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                        taskService.setVariableLocal(task.getId(), BpmnVariableConstants.TASK_VARIABLE_WORK_DUE_DATE, dueTs);
+                        log.info("[processTaskCreated][taskId({}) 工作时间到期时间计算完成: {}({})]", task.getId(), workTimeDueTime, dueTs);
+
                         // 验证工作时间配置
                         String configInfo = BpmnModelUtils.validateAndLogWorkTimeConfig(userTaskElement, task.getId());
                         log.info("[processTaskCreated][{}]", configInfo);
                     } else {
-                        log.warn("[processTaskCreated][taskId({}) 工作时间计算失败，保持原始截止时间]", task.getId());
+                        log.warn("[processTaskCreated][taskId({}) 工作时间计算失败]", task.getId());
                     }
                 } catch (Exception e) {
                     log.error("[processTaskCreated][taskId({}) 工作时间计算异常]", task.getId(), e);
                 }
             } else {
-                log.debug("[processTaskCreated][taskId({}) 未启用工作时间计算或无截止时间]", task.getId());
+                log.debug("[processTaskCreated][taskId({}) 未启用工作时间计算]", task.getId());
             }
         }
 
@@ -1788,139 +1790,12 @@ public class BpmTaskServiceImpl implements BpmTaskService {
 
         // 2. 遍历任务执行超时处理
         taskList.forEach(task -> FlowableUtils.execute(task.getTenantId(), () -> {
-            // 检查是否启用了工作时间计算
             BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(task.getProcessDefinitionId());
             FlowElement userTaskElement = BpmnModelUtils.getFlowElementById(bpmnModel, task.getTaskDefinitionKey());
-            BpmnModelUtils.WorkTimeConfig workTimeConfig = BpmnModelUtils.getWorkTimeConfig(userTaskElement);
-            
-            // 如果启用了工作时间计算，需要特殊处理
-            if (workTimeConfig.isEnabled() && task.getDueDate() != null) {
-                boolean shouldProcessTimeout = handleWorkTimeTimeout(task, processInstance, userTaskElement, handlerType);
-                if (!shouldProcessTimeout) {
-                    return;
-                }
-            }
-            
-            // 执行具体的超时处理逻辑
+
+            // 直接执行超时处理逻辑，工作时间配置仅用于卡滞计算
             executeTimeoutHandler(task, processInstance, userTaskElement, handlerType);
         }));
-    }
-
-    /**
-     * 处理工作时间模式的超时逻辑
-     * 
-     * @param task 任务
-     * @param processInstance 流程实例
-     * @param userTaskElement 用户任务元素
-     * @param handlerType 处理类型
-     * @return 是否应该继续处理超时
-     */
-    private boolean handleWorkTimeTimeout(Task task, ProcessInstance processInstance, 
-                                        FlowElement userTaskElement, Integer handlerType) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime dueTime = DateUtils.of(task.getDueDate());
-        
-        // 添加时间容差（60秒），避免因为微小的时间差异导致误判
-        Duration tolerance = Duration.ofSeconds(60);
-        
-        log.info("[handleWorkTimeTimeout][任务({})时间比较: 当前时间={}, 截止时间={}, 容差={}秒]", 
-                task.getId(), now, dueTime, tolerance.toSeconds());
-        
-        // 检查是否已经记录过首次工作时间超时
-        String firstTimeoutKey = "worktime_first_timeout_" + task.getId();
-        String originalIntervalKey = "worktime_original_interval_" + task.getId();
-        
-        LocalDateTime firstTimeoutTime = (LocalDateTime) runtimeService.getVariable(task.getExecutionId(), firstTimeoutKey);
-        String originalInterval = (String) runtimeService.getVariable(task.getExecutionId(), originalIntervalKey);
-        
-        // 如果是首次处理工作时间超时
-        if (firstTimeoutTime == null) {
-            // 计算时间窗口：[截止时间-容差, 截止时间+容差]
-            LocalDateTime dueMinusTolerance = dueTime.minus(tolerance);
-            LocalDateTime duePlusTolerance = dueTime.plus(tolerance);
-            Duration timeDiff = Duration.between(dueTime, now);
-            
-            // 如果当前时间在容差窗口内，执行超时处理
-            if (now.isAfter(dueMinusTolerance) && now.isBefore(duePlusTolerance)) {
-                // 记录首次超时时间和原始间隔
-                runtimeService.setVariable(task.getExecutionId(), firstTimeoutKey, now);
-                
-                // 从边界事件扩展元素中获取原始间隔
-                if (originalInterval == null) {
-                    originalInterval = getOriginalTimeoutInterval(userTaskElement);
-                    runtimeService.setVariable(task.getExecutionId(), originalIntervalKey, originalInterval);
-                }
-                
-                if (timeDiff.isNegative()) {
-                    // 当前时间早于截止时间
-                    log.info("[handleWorkTimeTimeout][任务({})首次工作时间处理，当前时间({})早于截止时间({})约{}，在容差窗口内，执行超时处理]", 
-                            task.getId(), now, dueTime, timeDiff.abs());
-                } else {
-                    // 当前时间晚于截止时间
-                    log.info("[handleWorkTimeTimeout][任务({})首次工作时间处理，当前时间({})晚于截止时间({})约{}，在容差窗口内，执行超时处理]", 
-                            task.getId(), now, dueTime, timeDiff);
-                }
-                return true;
-            } else {
-                // 不在容差窗口内，跳过处理
-                if (now.isBefore(dueMinusTolerance)) {
-                    log.info("[handleWorkTimeTimeout][任务({})首次工作时间检查，当前时间({})过早，距离截止时间({})还有{}，继续等待下次检测]", 
-                            task.getId(), now, dueTime, timeDiff.abs());
-                } else {
-                    log.info("[handleWorkTimeTimeout][任务({})首次工作时间检查，当前时间({})过晚，已超过截止时间({})约{}，执行延迟超时处理]", 
-                            task.getId(), now, dueTime, timeDiff);
-                    
-                    // 记录首次超时时间和原始间隔（用于可能的后续提醒）
-                    runtimeService.setVariable(task.getExecutionId(), firstTimeoutKey, now);
-                    if (originalInterval == null) {
-                        originalInterval = getOriginalTimeoutInterval(userTaskElement);
-                        runtimeService.setVariable(task.getExecutionId(), originalIntervalKey, originalInterval);
-                    }
-                    return true; // 执行延迟超时处理
-                }
-                return false; // 过早情况返回false，继续等待
-            }
-        } else {
-            // 后续提醒：检查是否到了下一个提醒时间
-            if (originalInterval != null) {
-                Duration intervalDuration = parseIntervalDuration(originalInterval);
-                
-                // 计算应该提醒的次数
-                long reminderCount = Duration.between(firstTimeoutTime, now).dividedBy(intervalDuration) + 1;
-                LocalDateTime expectedReminderTime = firstTimeoutTime.plus(intervalDuration.multipliedBy(reminderCount - 1));
-                
-                // 计算时间窗口：[预期提醒时间-容差, 预期提醒时间+容差]
-                LocalDateTime expectedMinusTolerance = expectedReminderTime.minus(tolerance);
-                LocalDateTime expectedPlusTolerance = expectedReminderTime.plus(tolerance);
-                Duration timeDiff = Duration.between(expectedReminderTime, now);
-                
-                // 如果当前时间在容差窗口内，执行超时处理
-                if (now.isAfter(expectedMinusTolerance) && now.isBefore(expectedPlusTolerance)) {
-                    if (timeDiff.isNegative()) {
-                        // 当前时间早于预期提醒时间
-                        log.info("[handleWorkTimeTimeout][任务({})后续提醒处理，当前时间({})早于预期提醒时间({})约{}，在容差窗口内，第{}次提醒]", 
-                                task.getId(), now, expectedReminderTime, timeDiff.abs(), reminderCount);
-                    } else {
-                        // 当前时间晚于预期提醒时间
-                        log.info("[handleWorkTimeTimeout][任务({})后续提醒处理，当前时间({})晚于预期提醒时间({})约{}，在容差窗口内，第{}次提醒]", 
-                                task.getId(), now, expectedReminderTime, timeDiff, reminderCount);
-                    }
-                    return true;
-                } else {
-                    // 不在容差窗口内，跳过处理
-                    if (now.isBefore(expectedMinusTolerance)) {
-                        log.info("[handleWorkTimeTimeout][任务({})后续提醒检查，当前时间({})过早，距离预期提醒时间({})还有{}，继续等待下次检测]", 
-                                task.getId(), now, expectedReminderTime, timeDiff.abs());
-                        return false; // 继续等待
-                    } else {
-                        log.info("[handleWorkTimeTimeout][任务({})后续提醒检查，当前时间({})过晚，已超过预期提醒时间({})约{}，执行延迟提醒]", 
-                                task.getId(), now, expectedReminderTime, timeDiff);
-                        return true; // 执行延迟提醒
-                    }
-                }
-            }
-            return true;
-        }
     }
 
     /**
@@ -1974,87 +1849,25 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         String targetTaskId = BpmnModelUtils.parseTimeoutReturnNodeId(userTaskElement);
         
         if (StrUtil.isNotEmpty(targetTaskId)) {
-            // 对于工作时间模式，检查提醒次数
-            BpmnModelUtils.WorkTimeConfig workTimeConfig = BpmnModelUtils.getWorkTimeConfig(userTaskElement);
-            
-            if (workTimeConfig.isEnabled()) {
-                // 工作时间模式：检查是否达到最大提醒次数
-                String firstTimeoutKey = "worktime_first_timeout_" + task.getId();
-                String originalIntervalKey = "worktime_original_interval_" + task.getId();
-                
-                LocalDateTime firstTimeoutTime = (LocalDateTime) runtimeService.getVariable(task.getExecutionId(), firstTimeoutKey);
-                String originalInterval = (String) runtimeService.getVariable(task.getExecutionId(), originalIntervalKey);
-                
-                if (firstTimeoutTime != null && originalInterval != null) {
-                    Duration intervalDuration = parseIntervalDuration(originalInterval);
-                    long currentReminderCount = Duration.between(firstTimeoutTime, LocalDateTime.now()).dividedBy(intervalDuration) + 1;
-                    
-                    // 获取最大提醒次数
-                    String maxRemindCountStr = BpmnModelUtils.parseExtensionElement(userTaskElement,
-                            BpmnModelConstants.USER_TASK_TIMEOUT_JUMP_MAX_REMIND_COUNT);
-                    int maxRemindCount = StrUtil.isEmpty(maxRemindCountStr) ? 1 : Integer.parseInt(maxRemindCountStr);
-                    
-                    if (currentReminderCount >= maxRemindCount) {
-                        log.info("[handleTimeoutReminder][工作时间任务({})提醒次数({})达到上限({}), 执行自动跳转到节点({})]",
-                                task.getId(), currentReminderCount, maxRemindCount, targetTaskId);
-                        
-                        // 清除工作时间相关变量
-                        runtimeService.removeVariable(task.getExecutionId(), firstTimeoutKey);
-                        runtimeService.removeVariable(task.getExecutionId(), originalIntervalKey);
-                        
-                        // 执行自动跳转
-                        timeoutTask(Long.parseLong(task.getAssignee()),
-                                new BpmTaskRejectReqVO().setId(task.getId())
-                                        .setReason(BpmReasonEnum.TIMEOUT_JUMP.getReason()));
-                    }
-                }
-            } else {
-                // 标准模式：使用原有的提醒次数逻辑
-                String taskKey = task.getId();
-                int reminderCount = taskReminderCountMap.getOrDefault(taskKey, 0) + 1;
-                taskReminderCountMap.put(taskKey, reminderCount);
-                
-                String maxRemindCountStr = BpmnModelUtils.parseExtensionElement(userTaskElement,
-                        BpmnModelConstants.USER_TASK_TIMEOUT_JUMP_MAX_REMIND_COUNT);
-                int maxRemindCount = StrUtil.isEmpty(maxRemindCountStr) ? 1 : Integer.parseInt(maxRemindCountStr);
-                
-                if (reminderCount >= maxRemindCount) {
-                    log.info("[handleTimeoutReminder][标准任务({})提醒次数({})达到上限({}), 执行自动跳转到节点({})]",
-                            taskKey, reminderCount, maxRemindCount, targetTaskId);
-                    taskReminderCountMap.remove(taskKey);
-                    timeoutTask(Long.parseLong(task.getAssignee()),
-                            new BpmTaskRejectReqVO().setId(task.getId())
-                                    .setReason(BpmReasonEnum.TIMEOUT_JUMP.getReason()));
-                }
+            String taskKey = task.getId();
+            int reminderCount = taskReminderCountMap.getOrDefault(taskKey, 0) + 1;
+            taskReminderCountMap.put(taskKey, reminderCount);
+
+            String maxRemindCountStr = BpmnModelUtils.parseExtensionElement(userTaskElement,
+                    BpmnModelConstants.USER_TASK_TIMEOUT_JUMP_MAX_REMIND_COUNT);
+            int maxRemindCount = StrUtil.isEmpty(maxRemindCountStr) ? 1 : Integer.parseInt(maxRemindCountStr);
+
+            if (reminderCount >= maxRemindCount) {
+                log.info("[handleTimeoutReminder][任务({})提醒次数({})达到上限({}), 执行自动跳转到节点({})]",
+                        taskKey, reminderCount, maxRemindCount, targetTaskId);
+                taskReminderCountMap.remove(taskKey);
+                timeoutTask(Long.parseLong(task.getAssignee()),
+                        new BpmTaskRejectReqVO().setId(task.getId())
+                                .setReason(BpmReasonEnum.TIMEOUT_JUMP.getReason()));
             }
         }
     }
 
-    /**
-     * 获取原始的超时间隔设置
-     */
-    private String getOriginalTimeoutInterval(FlowElement userTaskElement) {
-        // 从边界事件的扩展元素中获取原始间隔
-        // 这需要在边界事件创建时保存
-        String originalInterval = BpmnModelUtils.parseExtensionElement(userTaskElement, "originalTimeDuration");
-        if (StrUtil.isEmpty(originalInterval)) {
-            // 如果没有保存，尝试从其他地方获取，或使用默认值
-            originalInterval = "PT12M"; // 默认12分钟
-        }
-        return originalInterval;
-    }
-
-    /**
-     * 解析时间间隔字符串为Duration
-     */
-    private Duration parseIntervalDuration(String intervalStr) {
-        try {
-            return Duration.parse(intervalStr);
-        } catch (Exception e) {
-            log.warn("[parseIntervalDuration][解析时间间隔失败: {}，使用默认12分钟]", intervalStr);
-            return Duration.ofMinutes(12);
-        }
-    }
 
     @Override
     public void processDelayTimerTimeout(String processInstanceId, String taskDefineKey) {

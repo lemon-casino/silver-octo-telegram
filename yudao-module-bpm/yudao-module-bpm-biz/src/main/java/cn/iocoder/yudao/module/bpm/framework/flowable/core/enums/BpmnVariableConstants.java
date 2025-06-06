@@ -93,4 +93,14 @@ public class BpmnVariableConstants {
     //流程实例中的变量 - 是否是委派 还是转办 1:委派 2:转办
     public static final String PROCESS_INSTANCE_VARIABLE_IS_DELEGATE = "IS_DELEGATE";
 
+    /**
+     * 任务变量 - 工作时间计算得到的到期时间戳
+     *
+     * <p>
+     * 由于 {@link org.flowable.task.api.Task#setDueDate(java.util.Date)} 只接收
+     * {@link java.util.Date} 类型，为避免时区问题，这里统一保存为 epoch milli
+     * 秒形式，保存在任务的本地变量中。
+     */
+    public static final String TASK_VARIABLE_WORK_DUE_DATE = "WORK_DUE_DATE";
+
 }
