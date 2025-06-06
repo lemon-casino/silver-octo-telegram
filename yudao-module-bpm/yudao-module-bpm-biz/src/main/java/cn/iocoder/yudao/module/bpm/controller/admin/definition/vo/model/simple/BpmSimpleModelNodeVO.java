@@ -81,6 +81,11 @@ public class BpmSimpleModelNodeVO {
      */
     private TimeoutHandler timeoutHandler;
 
+    /**
+     * 节点工时设置
+     */
+    private WorkTimeHandler workTimeHandler;
+
     @Schema(description = "审批节点的审批人与发起人相同时，对应的处理类型", example = "1")
     @InEnum(BpmUserTaskAssignStartUserHandlerTypeEnum.class)
     private Integer assignStartUserHandlerType;
@@ -200,11 +205,19 @@ public class BpmSimpleModelNodeVO {
         //自动跳转-跳转节点
         @Schema(description = "任务审批节点超时跳转Id", example = "Activity_1")
         private String returnNodeId;
-        //工时时长类型
+    }
+
+    @Schema(description = "工时设置")
+    @Valid
+    @Data
+    public static class WorkTimeHandler {
         @Schema(description = "工作时间类型", example = "1")
-        private Integer workTimeType;
+        private Integer workTimeType = 1;
         @Schema(description = "是否按工作时间计算超时", example = "false")
-        private Boolean workTimeEnable=false;
+        private Boolean workTimeEnable = true;
+        @Schema(description = "工时时间", requiredMode = Schema.RequiredMode.REQUIRED, example = "PT6H")
+        @NotEmpty(message = "工时时间不能为空")
+        private String timeDuration = "PT6H";
     }
 
     @Schema(description = "空处理策略")
