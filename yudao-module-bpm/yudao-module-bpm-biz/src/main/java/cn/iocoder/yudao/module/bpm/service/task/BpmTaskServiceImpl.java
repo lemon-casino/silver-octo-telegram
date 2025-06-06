@@ -1492,7 +1492,6 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                 try {
                     LocalDateTime createTime = DateUtils.of(task.getCreateTime());
                     Duration originalDuration = null;
-
                     String workDurationStr = BpmnModelUtils.parseWorkTimeDuration(userTaskElement);
                     if (StrUtil.isNotEmpty(workDurationStr)) {
                         originalDuration = Duration.parse(workDurationStr);
@@ -1508,7 +1507,6 @@ public class BpmTaskServiceImpl implements BpmTaskService {
 
                     log.info("[processTaskCreated][taskId({}) 启用工作时间计算: 创建时间={}, 时长={}秒]",
                             task.getId(), createTime, originalDuration.toSeconds());
-
                     LocalDateTime workTimeDueTime = workTimeService.calculateDueTime(createTime, originalDuration, workTimeConfig.getType());
 
                     if (workTimeDueTime != null) {
