@@ -212,12 +212,12 @@ public class BpmSimpleModelNodeVO {
     @Data
     public static class WorkTimeHandler {
         @Schema(description = "工作时间类型", example = "1")
-        private Integer workTimeType = 1;
+        private Integer workTimeType;
         @Schema(description = "是否按工作时间计算超时", example = "false")
-        private Boolean workTimeEnable = true;
+        private Boolean workTimeEnable;
         @Schema(description = "工时时间", requiredMode = Schema.RequiredMode.REQUIRED, example = "PT6H")
         @NotEmpty(message = "工时时间不能为空")
-        private String timeDuration = "PT6H";
+        private String timeDuration ;
     }
 
     @Schema(description = "空处理策略")
