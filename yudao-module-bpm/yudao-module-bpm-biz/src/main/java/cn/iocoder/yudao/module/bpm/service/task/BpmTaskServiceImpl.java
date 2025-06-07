@@ -67,7 +67,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -76,6 +75,7 @@ import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.
 import static cn.iocoder.yudao.module.bpm.enums.ErrorCodeConstants.*;
 import static cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnModelConstants.START_USER_NODE_ID;
 import static cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_RETURN_FLAG;
+import static cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_TIMEOUT_REMIND_COUNT;
 import static cn.iocoder.yudao.module.bpm.framework.flowable.core.util.BpmnModelUtils.*;
 
 /**
@@ -112,12 +112,6 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     @Resource
     private BpmWorkTimeService workTimeService;
 
-    /**
-     * 记录任务的提醒次数
-     * key: taskId
-     * value: 提醒次数
-     */
-    private final Map<String, Integer> taskReminderCountMap = new ConcurrentHashMap<>();
 
     @Resource
     private AdminUserApi adminUserApi;
@@ -1119,40 +1113,6 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     }
 
 
-    @Transactional(rollbackFor = Exception.class)
-    public void timeoutTask(Long userId, @Valid BpmTaskRejectReqVO reqVO) {
-        // 1.1 校验任务存在
-        Task task = validateTask(userId, reqVO.getId());
-        // 1.2 校验流程实例存在
-        ProcessInstance instance = processInstanceService.getProcessInstance(task.getProcessInstanceId());
-        if (instance == null) {
-            throw exception(PROCESS_INSTANCE_NOT_EXISTS);
-        }
-
-        // 2.1 更新流程任务为自动通过
-        updateTaskStatusAndReason(task.getId(), BpmTaskStatusEnum.AUTO_JUMP.getStatus(), reqVO.getReason());
-        // 2.2 添加流程评论
-        taskService.addComment(task.getId(), task.getProcessInstanceId(), BpmCommentTypeEnum.TIMEOUT_JUMP.getType(),
-                BpmCommentTypeEnum.TIMEOUT_JUMP.formatComment(reqVO.getReason()));
-        // 1. 获取要跳转的目标节点
-        BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(task.getProcessDefinitionId());
-        FlowElement userTaskElement = BpmnModelUtils.getFlowElementById(bpmnModel, task.getTaskDefinitionKey());
-
-        String targetTaskId = BpmnModelUtils.parseTimeoutReturnNodeId(userTaskElement);
-        if (StrUtil.isEmpty(targetTaskId)) {
-            log.error("[processTaskTimeout][taskId({}) 未配置超时跳转节点]", task.getId());
-            return;
-        }
-
-        // 2. 校验目标节点
-        Assert.notNull(targetTaskId, "超时跳转的节点不能为空");
-        FlowElement targetElement = BpmnModelUtils.getFlowElementById(bpmnModel, targetTaskId);
-        Assert.notNull(targetElement, String.format("超时跳转节点(%s)不存在", targetTaskId));
-
-        returnTask(userId, new BpmTaskReturnReqVO().setId(task.getId())
-                .setTargetTaskDefinitionKey(targetTaskId).setReason(reqVO.getReason()));
-    }
-
     /**
      * 更新流程任务的 status 状态
      *
@@ -1181,7 +1141,12 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         // 1. 校验任务存在
         Task task = validateTask(userId, reqVO.getId());
         // 2. 校验流程实例存在
-        ProcessInstance instance = processInstanceService.getProcessInstance(task.getProcessInstanceId());
+        System.out.println((reqVO.getProcessInstanceId() == null || reqVO.getProcessInstanceId().isEmpty())
+                ? task.getProcessInstanceId()
+                : reqVO.getProcessInstanceId());
+        ProcessInstance instance = processInstanceService.getProcessInstance((reqVO.getProcessInstanceId() == null || reqVO.getProcessInstanceId().isEmpty())
+                ? task.getProcessInstanceId()
+                : reqVO.getProcessInstanceId());
         if (instance == null) {
             throw exception(PROCESS_INSTANCE_NOT_EXISTS);
         }
@@ -1201,8 +1166,8 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                     Boolean.TRUE);
         }
 
-        log.info("任务id  {}，目标节点{}",task.getId(),reqVO.getTargetTaskDefinitionKey());
-        managementService.executeCommand(new BackTaskCmd(runtimeService, task.getId(),  reqVO.getTargetTaskDefinitionKey()));
+        log.info("[returnTask][任务({}) 跳转到节点({})]", task.getId(), reqVO.getTargetTaskDefinitionKey());
+        managementService.executeCommand(new BackTaskCmd(runtimeService, task.getId(), reqVO.getTargetTaskDefinitionKey()));
         // 4.1 如果目标节点配置为自动审批，在事务提交后自动完成该任务
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -1218,21 +1183,24 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                     return;
                 }
 
-                Task targetTask = taskService.createTaskQuery()
+                List<Task> targetTasks = taskService.createTaskQuery()
                         .processInstanceId(instance.getId())
                         .taskDefinitionKey(reqVO.getTargetTaskDefinitionKey())
-                        .singleResult();
-                if (targetTask == null) {
-                    log.warn("[returnTask][processInstance({}) node({}) 未找到自动审批任务]", instance.getId(), reqVO.getTargetTaskDefinitionKey());
+                        .list();
+                if (CollUtil.isEmpty(targetTasks)) {
+                    log.warn("[returnTask][processInstance({}) node({}) 未找到自动审批任务]",
+                            instance.getId(), reqVO.getTargetTaskDefinitionKey());
                     return;
                 }
 
-                if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_APPROVE.getType())) {
-                    getSelf().approveTask(null, new BpmTaskApproveReqVO().setId(targetTask.getId())
-                            .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_APPROVE.getReason()));
-                } else if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_REJECT.getType())) {
-                    getSelf().rejectTask(null, new BpmTaskRejectReqVO().setId(targetTask.getId())
-                            .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_REJECT.getReason()));
+                for (Task targetTask : targetTasks) {
+                    if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_APPROVE.getType())) {
+                        getSelf().approveTask(null, new BpmTaskApproveReqVO().setId(targetTask.getId())
+                                .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_APPROVE.getReason()));
+                    } else if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_REJECT.getType())) {
+                        getSelf().rejectTask(null, new BpmTaskRejectReqVO().setId(targetTask.getId())
+                                .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_REJECT.getReason()));
+                    }
                 }
             }
         });
@@ -1835,51 +1803,46 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         taskList.forEach(task -> FlowableUtils.execute(task.getTenantId(), () -> {
             BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(task.getProcessDefinitionId());
             FlowElement userTaskElement = BpmnModelUtils.getFlowElementById(bpmnModel, task.getTaskDefinitionKey());
+            // 情况一：自动提醒
+            if (Objects.equals(handlerType, BpmUserTaskTimeoutHandlerTypeEnum.REMINDER.getType())) {
+                handleTimeoutReminder(task, processInstance, userTaskElement);
+                return;
+            }
 
-            // 直接执行超时处理逻辑，工作时间配置仅用于卡滞计算
-            executeTimeoutHandler(task, processInstance, userTaskElement, handlerType);
+            // 情况二：自动同意
+            if (Objects.equals(handlerType, BpmUserTaskTimeoutHandlerTypeEnum.APPROVE.getType())) {
+                approveTask(Long.parseLong(task.getAssignee()),
+                        new BpmTaskApproveReqVO().setId(task.getId())
+                                .setReason(BpmReasonEnum.TIMEOUT_APPROVE.getReason()));
+                return;
+            }
+
+            // 情况三：自动拒绝
+            if (Objects.equals(handlerType, BpmUserTaskTimeoutHandlerTypeEnum.REJECT.getType())) {
+                rejectTask(Long.parseLong(task.getAssignee()),
+                        new BpmTaskRejectReqVO().setId(task.getId())
+                                .setReason(BpmReasonEnum.REJECT_TASK.getReason()));
+                return;
+            }
+
+            // 情况四：直接自动跳转（不需要提醒）
+            if (Objects.equals(handlerType, BpmUserTaskTimeoutHandlerTypeEnum.JUMP.getType())) {
+                String targetTaskId = BpmnModelUtils.parseTimeoutReturnNodeId(userTaskElement);
+                returnTask(Long.parseLong(task.getAssignee()), new BpmTaskReturnReqVO().setId(task.getId())
+                        .setTargetTaskDefinitionKey(targetTaskId).setReason(BpmReasonEnum.TIMEOUT_JUMP.getReason()));
+
+            }
         }));
     }
 
-    /**
-     * 执行具体的超时处理逻辑
-     */
-    private void executeTimeoutHandler(Task task, ProcessInstance processInstance,
-                                       FlowElement userTaskElement, Integer handlerType) {
-        // 情况一：自动提醒
-        if (Objects.equals(handlerType, BpmUserTaskTimeoutHandlerTypeEnum.REMINDER.getType())) {
-            handleTimeoutReminder(task, processInstance, userTaskElement);
-            return;
-        }
 
-        // 情况二：自动同意
-        if (Objects.equals(handlerType, BpmUserTaskTimeoutHandlerTypeEnum.APPROVE.getType())) {
-            approveTask(Long.parseLong(task.getAssignee()),
-                    new BpmTaskApproveReqVO().setId(task.getId())
-                            .setReason(BpmReasonEnum.TIMEOUT_APPROVE.getReason()));
-            return;
-        }
-
-        // 情况三：自动拒绝
-        if (Objects.equals(handlerType, BpmUserTaskTimeoutHandlerTypeEnum.REJECT.getType())) {
-            rejectTask(Long.parseLong(task.getAssignee()),
-                    new BpmTaskRejectReqVO().setId(task.getId())
-                            .setReason(BpmReasonEnum.REJECT_TASK.getReason()));
-            return;
-        }
-
-        // 情况四：直接自动跳转（不需要提醒）
-        if (Objects.equals(handlerType, BpmUserTaskTimeoutHandlerTypeEnum.JUMP.getType())) {
-            timeoutTask(Long.parseLong(task.getAssignee()),
-                    new BpmTaskRejectReqVO().setId(task.getId())
-                            .setReason(BpmReasonEnum.TIMEOUT_JUMP.getReason()));
-        }
-    }
 
     /**
      * 处理超时提醒逻辑
      */
-    private void handleTimeoutReminder(Task task, ProcessInstance processInstance, FlowElement userTaskElement) {
+
+    @Transactional(rollbackFor = Exception.class)
+    public void handleTimeoutReminder(Task task, ProcessInstance processInstance, FlowElement userTaskElement) {
         // 发送任务超时提醒
         messageService.sendMessageWhenTaskTimeout(new BpmMessageSendWhenTaskTimeoutReqDTO()
                 .setProcessInstanceId(processInstance.getId())
@@ -1892,9 +1855,10 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         String targetTaskId = BpmnModelUtils.parseTimeoutReturnNodeId(userTaskElement);
 
         if (StrUtil.isNotEmpty(targetTaskId)) {
-            String taskKey = task.getId();
-            int reminderCount = taskReminderCountMap.getOrDefault(taskKey, 0) + 1;
-            taskReminderCountMap.put(taskKey, reminderCount);
+            String varKey = String.format(PROCESS_INSTANCE_VARIABLE_TIMEOUT_REMIND_COUNT, task.getTaskDefinitionKey());
+            Integer reminderCount = runtimeService.getVariable(processInstance.getId(), varKey, Integer.class);
+            reminderCount = reminderCount == null ? 1 : reminderCount + 1;
+            runtimeService.setVariable(processInstance.getId(), varKey, reminderCount);
 
             String maxRemindCountStr = BpmnModelUtils.parseExtensionElement(userTaskElement,
                     BpmnModelConstants.USER_TASK_TIMEOUT_JUMP_MAX_REMIND_COUNT);
@@ -1902,11 +1866,13 @@ public class BpmTaskServiceImpl implements BpmTaskService {
 
             if (reminderCount >= maxRemindCount) {
                 log.info("[handleTimeoutReminder][任务({})提醒次数({})达到上限({}), 执行自动跳转到节点({})]",
-                        taskKey, reminderCount, maxRemindCount, targetTaskId);
-                taskReminderCountMap.remove(taskKey);
-                timeoutTask(Long.parseLong(task.getAssignee()),
-                        new BpmTaskRejectReqVO().setId(task.getId())
-                                .setReason(BpmReasonEnum.TIMEOUT_JUMP.getReason()));
+                        task.getId(), reminderCount, maxRemindCount, targetTaskId);
+                runtimeService.removeVariable(processInstance.getId(), varKey);
+
+
+                returnTask(Long.parseLong(task.getAssignee()), new BpmTaskReturnReqVO().setId(task.getId())
+                        .setProcessInstanceId(processInstance.getId())
+                        .setTargetTaskDefinitionKey(targetTaskId).setReason(BpmReasonEnum.TIMEOUT_JUMP.getReason()));
             }
         }
     }

@@ -44,6 +44,10 @@ public class BpmnVariableConstants {
      */
     public static final String PROCESS_INSTANCE_VARIABLE_RETURN_FLAG = "RETURN_FLAG_%s";
     /**
+     * 流程实例的变量 - 超时提醒次数
+     */
+    public static final String PROCESS_INSTANCE_VARIABLE_TIMEOUT_REMIND_COUNT = "TIMEOUT_REMIND_COUNT_%s";
+    /**
      * 流程实例的变量 - 是否跳过表达式
      *
      * @see ProcessInstance#getProcessVariables()
