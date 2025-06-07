@@ -1095,37 +1095,12 @@ public class BpmnModelUtils {
         
         Boolean workTimeEnable = parseWorkTimeEnable(flowElement);
         Integer workTimeType = parseWorkTimeType(flowElement);
-        
-        StringBuilder configInfo = new StringBuilder();
-        configInfo.append(String.format("任务(%s)工作时间配置: ", taskId));
-        configInfo.append(String.format("启用状态=%s, ", workTimeEnable));
-        configInfo.append(String.format("工作时间类型=%s, ", workTimeType));
-        configInfo.append(String.format("是否需要计算=%s", needWorkTimeCalculation(flowElement)));
-        
-        String result = configInfo.toString();
+
+        String result = String.format("任务(%s)工作时间配置: ", taskId) +
+                String.format("启用状态=%s, ", workTimeEnable) +
+                String.format("工作时间类型=%s, ", workTimeType) +
+                String.format("是否需要计算=%s", needWorkTimeCalculation(flowElement));
         log.info("[validateAndLogWorkTimeConfig][{}]", result);
         return result;
-    }
-
-    /**
-     * 检查边界事件是否配置了工作时间计算
-     *
-     * @param boundaryEvent 边界事件
-     * @return 是否配置了工作时间计算
-     */
-    public static boolean isBoundaryEventWorkTimeEnabled(BoundaryEvent boundaryEvent) {
-        if (boundaryEvent == null) {
-            return false;
-        }
-        
-        Boolean workTimeEnable = parseWorkTimeEnable(boundaryEvent);
-        Integer workTimeType = parseWorkTimeType(boundaryEvent);
-        
-        boolean enabled = Boolean.TRUE.equals(workTimeEnable) && workTimeType != null;
-        
-        log.debug("[isBoundaryEventWorkTimeEnabled][边界事件({})工作时间计算: 启用={}, 类型={}]", 
-                boundaryEvent.getId(), workTimeEnable, workTimeType);
-        
-        return enabled;
     }
 }

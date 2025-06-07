@@ -375,7 +375,7 @@ public class SimpleModelUtils {
 
             // 2. 添加用户任务的 Timer Boundary Event, 用于任务的审批超时处理
             if (node.getTimeoutHandler() != null && node.getTimeoutHandler().getEnable()) {
-                BoundaryEvent boundaryEvent = buildUserTaskTimeoutBoundaryEvent(userTask, node.getTimeoutHandler(), node.getWorkTimeHandler());
+                BoundaryEvent boundaryEvent = buildUserTaskTimeoutBoundaryEvent(userTask, node.getTimeoutHandler());
                 flowElements.add(boundaryEvent);
             }
             return flowElements;
@@ -394,8 +394,7 @@ public class SimpleModelUtils {
          * @return BoundaryEvent 超时事件
          */
         private BoundaryEvent buildUserTaskTimeoutBoundaryEvent(UserTask userTask,
-                                                                BpmSimpleModelNodeVO.TimeoutHandler timeoutHandler,
-                                                                BpmSimpleModelNodeVO.WorkTimeHandler workTimeHandler) {
+                                                                BpmSimpleModelNodeVO.TimeoutHandler timeoutHandler) {
             // 1.1 定时器边界事件
             BoundaryEvent boundaryEvent = new BoundaryEvent();
             boundaryEvent.setId("Event-" + IdUtil.fastUUID());
@@ -404,20 +403,7 @@ public class SimpleModelUtils {
             
             // 1.2 计算实际的超时时间 - 如果启用工作时间计算，需要动态计算触发时间
             String actualTimeDuration = timeoutHandler.getTimeDuration();
-            
-            // 如果启用了工作时间计算，需要特殊处理
-            if (workTimeHandler != null && Boolean.TRUE.equals(workTimeHandler.getWorkTimeEnable())
-                    && workTimeHandler.getWorkTimeType() != null) {
-                // 注意：边界事件的工作时间计算需要在运行时进行，此处保持原始时间
-                // 实际的工作时间计算将在任务创建时进行，边界事件将通过特殊逻辑处理
-//                log.info("[buildUserTaskTimeoutBoundaryEvent][用户任务({})启用工作时间计算，保存原始超时间隔: {}]",
-//                        userTask.getId(), timeoutHandler.getTimeDuration());
 
-                // 保存原始超时间隔到UserTask的扩展元素中，供processTaskTimeout使用
-                addExtensionElement(userTask, "originalTimeDuration", timeoutHandler.getTimeDuration());
-                addWorkTimeDuration(workTimeHandler.getTimeDuration(), boundaryEvent);
-            }
-            
             // 1.3 定义超时时间、最大提醒次数
             TimerEventDefinition eventDefinition = new TimerEventDefinition();
             eventDefinition.setTimeDuration(actualTimeDuration);
@@ -432,16 +418,6 @@ public class SimpleModelUtils {
             addExtensionElement(boundaryEvent, BOUNDARY_EVENT_TYPE, BpmBoundaryEventTypeEnum.USER_TASK_TIMEOUT.getType());
             // 2.2 添加超时执行动作元素
             addExtensionElement(boundaryEvent, USER_TASK_TIMEOUT_HANDLER_TYPE, timeoutHandler.getType());
-            
-            // 2.3 如果启用工作时间，添加相关扩展元素供后续处理使用
-            if (workTimeHandler != null && Boolean.TRUE.equals(workTimeHandler.getWorkTimeEnable())) {
-                addExtensionElement(boundaryEvent, USER_TASK_WORK_TIME_ENABLE, "true");
-                if (workTimeHandler.getWorkTimeType() != null) {
-                    addExtensionElement(boundaryEvent, USER_TASK_WORK_TIME_TYPE,
-                            String.valueOf(workTimeHandler.getWorkTimeType()));
-                }
-            }
-            
             return boundaryEvent;
         }
 
@@ -781,6 +757,7 @@ public class SimpleModelUtils {
 
         @Override
         public List<FlowElement> convertList(BpmSimpleModelNodeVO node) {
+
             List<FlowElement> flowElements = new ArrayList<>(2);
             // 1. 构建接收任务，通过接收任务可卡住节点
             ReceiveTask receiveTask = new ReceiveTask();
