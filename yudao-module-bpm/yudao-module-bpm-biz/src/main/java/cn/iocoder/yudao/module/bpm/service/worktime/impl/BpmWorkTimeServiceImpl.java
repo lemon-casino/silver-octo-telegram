@@ -13,9 +13,12 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import static cn.iocoder.yudao.framework.common.util.date.DateUtils.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND;
 
 /**
  * 工作时间计算实现
@@ -34,6 +37,9 @@ public class BpmWorkTimeServiceImpl implements BpmWorkTimeService {
             new LocalTime[]{LocalTime.of(8, 0), LocalTime.of(12, 0)},
             new LocalTime[]{LocalTime.of(13, 0), LocalTime.of(18, 0)}
     );
+    private static final DateTimeFormatter LOG_DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern(FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND);
+
 
     @Override
     public LocalDateTime calculateDueTime(LocalDateTime startTime, Duration duration, Integer workTimeType) {
@@ -41,9 +47,9 @@ public class BpmWorkTimeServiceImpl implements BpmWorkTimeService {
             log.warn("[calculateDueTime][参数为空: startTime={}, duration={}]", startTime, duration);
             return null;
         }
-        
-        log.info("[calculateDueTime][开始计算工作时间: 开始时间={}, 持续时长={}秒, 工作时间类型={}]", 
-                startTime, duration.toSeconds(), workTimeType);
+
+        log.info("[calculateDueTime][开始计算工作时间: 开始时间={}, 持续时长={}秒, 工作时间类型={}]",
+                startTime.format(LOG_DATE_TIME_FORMATTER), duration.toSeconds(), workTimeType);
         
         long seconds = duration.toSeconds();
         // 保持秒级以下的精度（纳秒）
@@ -56,8 +62,6 @@ public class BpmWorkTimeServiceImpl implements BpmWorkTimeService {
             
             log.debug("[calculateDueTime][第{}天计算: 日期={}, 剩余秒数={}, 工作时间段数={}]", 
                     dayCount + 1, cursor.toLocalDate(), seconds, ranges.size());
-            
-            boolean foundWorkTime = false;
             for (LocalTime[] r : ranges) {
                 LocalDateTime rangeStart = LocalDateTime.of(cursor.toLocalDate(), r[0]);
                 LocalDateTime rangeEnd = LocalDateTime.of(cursor.toLocalDate(), r[1]);
@@ -65,24 +69,27 @@ public class BpmWorkTimeServiceImpl implements BpmWorkTimeService {
                 // 如果当前时间在工作时间段之前，调整到工作时间开始
                 if (cursor.isBefore(rangeStart)) {
                     cursor = rangeStart;
-                    log.debug("[calculateDueTime][调整到工作时间开始: {}]", cursor);
+                    log.debug("[calculateDueTime][调整到工作时间开始: {}]",
+                            cursor.format(LOG_DATE_TIME_FORMATTER));
                 }
                 
                 // 如果当前时间在当前工作时间段之后，跳过这个时间段
                 if (cursor.isAfter(rangeEnd)) {
-                    log.debug("[calculateDueTime][跳过已过时间段: {} - {}]", rangeStart, rangeEnd);
+                    log.debug("[calculateDueTime][跳过已过时间段: {} - {}]",
+                            rangeStart.format(LOG_DATE_TIME_FORMATTER),
+                            rangeEnd.format(LOG_DATE_TIME_FORMATTER));
                     continue;
                 }
                 
                 // 计算在当前时间段内可用的时间
                 long avail = Math.min(seconds, Duration.between(cursor, rangeEnd).toSeconds());
                 if (avail > 0) {
-                    foundWorkTime = true;
                     cursor = cursor.plusSeconds(avail);
                     seconds -= avail;
-                    
-                    log.debug("[calculateDueTime][在时间段{}中消耗{}秒，当前时间={}, 剩余={}秒]", 
-                            rangeStart + "-" + rangeEnd, avail, cursor, seconds);
+
+                    log.debug("[calculateDueTime][在时间段{}中消耗{}秒，当前时间={}, 剩余={}秒]",
+                            rangeStart.format(LOG_DATE_TIME_FORMATTER) + "-" + rangeEnd.format(LOG_DATE_TIME_FORMATTER),
+                            avail, cursor.format(LOG_DATE_TIME_FORMATTER), seconds);
                 }
                 
                 if (seconds <= 0) {
@@ -106,10 +113,12 @@ public class BpmWorkTimeServiceImpl implements BpmWorkTimeService {
         // 添加剩余的纳秒精度
         if (nanos > 0) {
             cursor = cursor.plusNanos(nanos);
-            log.debug("[calculateDueTime][添加纳秒精度: {}纳秒，最终时间={}]", nanos, cursor);
+            log.debug("[calculateDueTime][添加纳秒精度: {}纳秒，最终时间={}]",
+                    nanos, cursor.format(LOG_DATE_TIME_FORMATTER));
         }
-        
-        log.info("[calculateDueTime][工作时间计算完成: 最终时间={}，共计算{}天]", cursor, dayCount);
+
+        log.info("[calculateDueTime][工作时间计算完成: 最终时间={}，共计算{}天]",
+                cursor.format(LOG_DATE_TIME_FORMATTER), dayCount);
         return cursor;
     }
 

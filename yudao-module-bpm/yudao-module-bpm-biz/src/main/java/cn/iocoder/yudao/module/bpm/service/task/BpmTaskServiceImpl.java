@@ -42,6 +42,7 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.bpmn.model.*;
 import org.flowable.common.engine.api.FlowableException;
+import org.flowable.common.engine.api.FlowableObjectNotFoundException;
 import org.flowable.engine.HistoryService;
 import org.flowable.engine.ManagementService;
 import org.flowable.engine.RuntimeService;
@@ -66,12 +67,14 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.*;
+import static cn.iocoder.yudao.framework.common.util.date.DateUtils.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND;
 import static cn.iocoder.yudao.module.bpm.enums.ErrorCodeConstants.*;
 import static cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnModelConstants.START_USER_NODE_ID;
 import static cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_RETURN_FLAG;
@@ -117,6 +120,8 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     private AdminUserApi adminUserApi;
     @Resource
     private DeptApi deptApi;
+    private static final DateTimeFormatter LOG_DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern(FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND);
 
     // ========== Query 查询相关方法 ==========
 
@@ -325,14 +330,16 @@ public class BpmTaskServiceImpl implements BpmTaskService {
      * @param userId 用户 id
      * @param taskId task id
      */
-    private Task validateTask(Long userId, String taskId) {
+    private Task validateTask(Long userId, String taskId, Boolean managerial) {
         Task task = validateTaskExist(taskId);
-        // 为什么判断 assignee 非空的情况下？
-        // 例如说：在审批人为空时，我们会有"自动审批通过"的策略，此时 userId 为 null，允许通过
-        // 判断是不是管理员
-        if (StrUtil.isNotBlank(task.getAssignee())
-                && ObjectUtil.notEqual(userId, NumberUtils.parseLong(task.getAssignee()))) {
-            throw exception(TASK_OPERATE_FAIL_ASSIGN_NOT_SELF);
+        // 如果不是管理员操作，则需要验证任务是否分配给当前用户
+        if (Boolean.FALSE.equals(managerial)) {
+            // 为什么判断 assignee 非空的情况下？
+            // 例如说：在审批人为空时，我们会有"自动审批通过"的策略，此时 userId 为 null，允许通过
+            if (StrUtil.isNotBlank(task.getAssignee())
+                    && ObjectUtil.notEqual(userId, NumberUtils.parseLong(task.getAssignee()))) {
+                throw exception(TASK_OPERATE_FAIL_ASSIGN_NOT_SELF);
+            }
         }
         return task;
     }
@@ -856,7 +863,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     @Transactional(rollbackFor = Exception.class)
     public void approveTask(Long userId, @Valid BpmTaskApproveReqVO reqVO) {
         // 1.1 校验任务存在
-        Task task = validateTask(userId, reqVO.getId());
+        Task task = validateTask(userId, reqVO.getId(),false);
         // 1.2 校验流程实例存在
         ProcessInstance instance = processInstanceService.getProcessInstance(task.getProcessInstanceId());
         if (instance == null) {
@@ -947,8 +954,12 @@ public class BpmTaskServiceImpl implements BpmTaskService {
             taskService.complete(task.getId());
         }
         // 清理退回标识，恢复节点的自动审批能力
-        runtimeService.removeVariable(task.getProcessInstanceId(),
-                String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, task.getTaskDefinitionKey()));
+        try {
+            runtimeService.removeVariable(task.getProcessInstanceId(),
+                    String.format(PROCESS_INSTANCE_VARIABLE_RETURN_FLAG, task.getTaskDefinitionKey()));
+        } catch (FlowableObjectNotFoundException e) {
+            log.info("[approveTask][删除退回标识变量时出错: {}]", e.getMessage());
+        }
 
         //判断当前节点userTask是否在并行网关或者包容网关内或者是多实例的 如果是
 
@@ -1072,7 +1083,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     @Transactional(rollbackFor = Exception.class)
     public void rejectTask(Long userId, @Valid BpmTaskRejectReqVO reqVO) {
         // 1.1 校验任务存在
-        Task task = validateTask(userId, reqVO.getId());
+        Task task = validateTask(userId, reqVO.getId(),false);
         // 1.2 校验流程实例存在
         ProcessInstance instance = processInstanceService.getProcessInstance(task.getProcessInstanceId());
         if (instance == null) {
@@ -1139,7 +1150,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     @Transactional(rollbackFor = Exception.class)
     public void returnTask(Long userId, BpmTaskReturnReqVO reqVO) {
         // 1. 校验任务存在
-        Task task = validateTask(userId, reqVO.getId());
+        Task task = validateTask(userId, reqVO.getId(),reqVO.getManagerial());
         // 2. 校验流程实例存在
         System.out.println((reqVO.getProcessInstanceId() == null || reqVO.getProcessInstanceId().isEmpty())
                 ? task.getProcessInstanceId()
@@ -1211,7 +1222,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     public void delegateTask(Long userId, BpmTaskDelegateReqVO reqVO) {
         String taskId = reqVO.getId();
         // 1.1 校验任务
-        Task task = validateTask(userId, reqVO.getId());
+        Task task = validateTask(userId, reqVO.getId(),false);
         if (task.getAssignee().equals(reqVO.getDelegateUserId().toString())) { // 校验当前审批人和被委派人不是同一人
             throw exception(TASK_DELEGATE_FAIL_USER_REPEAT);
         }
@@ -1239,7 +1250,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     public void transferTask(Long userId, BpmTaskTransferReqVO reqVO) {
         String taskId = reqVO.getId();
         // 1.1 校验任务
-        Task task = validateTask(userId, reqVO.getId());
+        Task task = validateTask(userId, reqVO.getId(),false);
         if (task.getAssignee().equals(reqVO.getAssigneeUserId().toString())) { // 校验当前审批人和被转派人不是同一人
             throw exception(TASK_TRANSFER_FAIL_USER_REPEAT);
         }
@@ -1351,7 +1362,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
      * @return 当前任务
      */
     private TaskEntityImpl validateTaskCanCreateSign(Long userId, BpmTaskSignCreateReqVO reqVO) {
-        TaskEntityImpl taskEntity = (TaskEntityImpl) validateTask(userId, reqVO.getId());
+        TaskEntityImpl taskEntity = (TaskEntityImpl) validateTask(userId, reqVO.getId(),false);
         // 向前加签和向后加签不能同时存在
         if (taskEntity.getScopeType() != null
                 && ObjectUtil.notEqual(taskEntity.getScopeType(), reqVO.getType())) {
@@ -1519,15 +1530,15 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                     }
 
                     log.info("[processTaskCreated][taskId({}) 启用工作时间计算: 创建时间={}, 时长={}秒]",
-                            task.getId(), createTime, originalDuration.toSeconds());
+                            task.getId(), createTime.format(LOG_DATE_TIME_FORMATTER), originalDuration.toSeconds());
                     LocalDateTime workTimeDueTime = workTimeService.calculateDueTime(createTime, originalDuration, workTimeConfig.getType());
 
                     if (workTimeDueTime != null) {
                         // 保存工作时间到期时间(时间戳)到任务变量
                         long dueTs = workTimeDueTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
                         taskService.setVariableLocal(task.getId(), BpmnVariableConstants.TASK_VARIABLE_WORK_DUE_DATE, dueTs);
-                        log.info("[processTaskCreated][taskId({}) 工作时间到期时间计算完成: {}({})]", task.getId(), workTimeDueTime, dueTs);
-
+                        log.info("[processTaskCreated][taskId({}) 工作时间到期时间计算完成: {}({})]",
+                                task.getId(), workTimeDueTime.format(LOG_DATE_TIME_FORMATTER), dueTs);
                         // 验证工作时间配置
                         String configInfo = BpmnModelUtils.validateAndLogWorkTimeConfig(userTaskElement, task.getId());
                         log.info("[processTaskCreated][{}]", configInfo);
@@ -1867,12 +1878,21 @@ public class BpmTaskServiceImpl implements BpmTaskService {
             if (reminderCount >= maxRemindCount) {
                 log.info("[handleTimeoutReminder][任务({})提醒次数({})达到上限({}), 执行自动跳转到节点({})]",
                         task.getId(), reminderCount, maxRemindCount, targetTaskId);
-                runtimeService.removeVariable(processInstance.getId(), varKey);
+                // 检查流程实例是否有效
+                if (runtimeService.createProcessInstanceQuery().processInstanceId(processInstance.getId()).count() > 0) {
+                    try {
+                        runtimeService.removeVariable(processInstance.getId(), varKey);
+                    } catch (FlowableObjectNotFoundException e) {
+                        log.info("尝试删除变量时发生错误: {}", e.getMessage());
+                    }
 
-
-                returnTask(Long.parseLong(task.getAssignee()), new BpmTaskReturnReqVO().setId(task.getId())
-                        .setProcessInstanceId(processInstance.getId())
-                        .setTargetTaskDefinitionKey(targetTaskId).setReason(BpmReasonEnum.TIMEOUT_JUMP.getReason()));
+                    returnTask(Long.parseLong(task.getAssignee()), new BpmTaskReturnReqVO().setId(task.getId())
+                            .setProcessInstanceId(processInstance.getId())
+                            .setTargetTaskDefinitionKey(targetTaskId)
+                            .setReason(BpmReasonEnum.TIMEOUT_JUMP.getReason()));
+                } else {
+                    log.warn("流程实例({})不存在，无法删除变量", processInstance.getId());
+                }
             }
         }
     }

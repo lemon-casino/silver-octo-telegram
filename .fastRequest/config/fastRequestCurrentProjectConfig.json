@@ -4,15 +4,29 @@
 		"domain":"https://api.apifox.com",
 		"syncAfterSave":false
 	},
-	"dataList":[],
-	"envList":[],
+	"dataList":[
+		{
+			"hostGroup":[
+				{
+					"env":"local",
+					"url":"http://localhost:48081/admin-api"
+				}
+			],
+			"name":"yudao-module-bpm-biz"
+		}
+	],
+	"envList":[
+		"local"
+	],
 	"headerList":[],
 	"ignoreParseFieldList":[],
 	"maxDescriptionLength":-1,
 	"pmCollectionId":"",
 	"postScript":"",
 	"preScript":"",
-	"projectList":[],
+	"projectList":[
+		"yudao-module-bpm-biz"
+	],
 	"syncModel":{
 		"branch":"master",
 		"domain":"https://github.com",
