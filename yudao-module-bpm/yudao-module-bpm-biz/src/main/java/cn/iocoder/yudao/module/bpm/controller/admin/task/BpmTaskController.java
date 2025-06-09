@@ -344,7 +344,13 @@ public class BpmTaskController {
         return success(list);
     }
 
-
+    @PutMapping("/transfer-running")
+    @Operation(summary = "批量转办运行中的任务")
+    @PreAuthorize("@ss.hasPermission('bpm:task:update')")
+    public CommonResult<Boolean> transferRunningTasks(@Valid @RequestBody BpmTaskTransferAllReqVO reqVO) {
+        bpmTaskService.transferRunningTasks(getLoginUserId(), reqVO);
+        return success(true);
+    }
 
     @PutMapping("/return")
     @Operation(summary = "退回任务", description = "用于【流程详情】的【退回】按钮")

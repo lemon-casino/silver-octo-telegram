@@ -1250,7 +1250,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     public void transferTask(Long userId, BpmTaskTransferReqVO reqVO) {
         String taskId = reqVO.getId();
         // 1.1 校验任务
-        Task task = validateTask(userId, reqVO.getId(),false);
+        Task task = validateTask(userId, reqVO.getId(),reqVO.getManagerial());
         if (task.getAssignee().equals(reqVO.getAssigneeUserId().toString())) { // 校验当前审批人和被转派人不是同一人
             throw exception(TASK_TRANSFER_FAIL_USER_REPEAT);
         }
@@ -1923,7 +1923,34 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                 .includeTaskLocalVariables().list();
     }
 
-
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void transferRunningTasks(Long userId, BpmTaskTransferAllReqVO reqVO) {
+        if (ObjectUtil.equals(reqVO.getFromUserId(), reqVO.getToUserId())) {
+            throw exception(TASK_TRANSFER_FAIL_USER_REPEAT);
+        }
+        AdminUserRespDTO toUser = adminUserApi.getUser(reqVO.getToUserId());
+        if (toUser == null) {
+            throw exception(TASK_TRANSFER_FAIL_USER_NOT_EXISTS);
+        }
+        // 查询指定审批人的所有运行中任务
+        List<Task> taskList = taskService.createTaskQuery()
+                .taskAssignee(String.valueOf(reqVO.getFromUserId()))
+                .active()
+                .list();
+        if (CollUtil.isEmpty(taskList)) {
+            return;
+        }
+        for (Task task : taskList) {
+            BpmTaskTransferReqVO item = new BpmTaskTransferReqVO();
+            item.setId(task.getId());
+            item.setAssigneeUserId(reqVO.getToUserId());
+            item.setReason(reqVO.getReason());
+            item.setManagerial(true);
+            // 使用自身代理，确保事务和AOP生效
+            getSelf().transferTask(userId, item);
+        }
+    }
 
     /**
      * 获得自身的代理对象，解决 AOP 生效问题
