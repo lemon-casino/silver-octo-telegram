@@ -33,6 +33,8 @@ import cn.iocoder.yudao.module.bpm.service.message.dto.BpmMessageSendWhenTaskTim
 import cn.iocoder.yudao.module.bpm.service.task.cmd.BackTaskCmd;
 import cn.iocoder.yudao.module.bpm.service.task.dto.BpmMultiInstanceMessageDTO;
 import cn.iocoder.yudao.module.bpm.service.worktime.BpmWorkTimeService;
+import cn.iocoder.yudao.module.bpm.dal.dataobject.task.BpmTaskTransferConfigDO;
+import cn.iocoder.yudao.module.bpm.service.task.BpmTaskTransferConfigService;
 import cn.iocoder.yudao.module.system.api.dept.DeptApi;
 import cn.iocoder.yudao.module.system.api.dept.dto.DeptRespDTO;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
@@ -114,6 +116,8 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     private BpmFormService formService;
     @Resource
     private BpmWorkTimeService workTimeService;
+    @Resource
+    private BpmTaskTransferConfigService taskTransferConfigService;
 
 
     @Resource
@@ -1247,6 +1251,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void transferTask(Long userId, BpmTaskTransferReqVO reqVO) {
         String taskId = reqVO.getId();
         // 1.1 校验任务
@@ -1672,6 +1677,18 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                 ProcessInstance processInstance = processInstanceService.getProcessInstance(task.getProcessInstanceId());
                 if (processInstance == null) {
                     log.error("[processTaskAssigned][taskId({}) 没有找到流程实例]", task.getId());
+                    return;
+                }
+
+                // 根据转办配置自动调整审批人
+                BpmTaskTransferConfigDO transferConfig = taskTransferConfigService.getActiveTaskTransferConfig(
+                        Long.valueOf(task.getAssignee()), task.getProcessDefinitionId());
+                if (transferConfig != null && ObjectUtil.notEqual(transferConfig.getToUserId(), transferConfig.getFromUserId())) {
+                    getSelf().transferTask(transferConfig.getFromUserId(), new BpmTaskTransferReqVO()
+                            .setId(task.getId())
+                            .setAssigneeUserId(transferConfig.getToUserId())
+                            .setReason(transferConfig.getReason())
+                            .setManagerial(true));
                     return;
                 }
 
