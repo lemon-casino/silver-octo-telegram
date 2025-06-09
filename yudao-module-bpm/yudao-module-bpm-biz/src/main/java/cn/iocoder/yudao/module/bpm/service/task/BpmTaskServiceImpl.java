@@ -1251,6 +1251,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void transferTask(Long userId, BpmTaskTransferReqVO reqVO) {
         String taskId = reqVO.getId();
         // 1.1 校验任务
