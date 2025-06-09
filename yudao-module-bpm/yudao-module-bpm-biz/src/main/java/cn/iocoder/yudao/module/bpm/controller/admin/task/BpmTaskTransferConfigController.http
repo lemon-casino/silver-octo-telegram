@@ -1,0 +1,45 @@
+### 请求 /bpm/task-transfer-config/create 接口 => 成功
+POST {{baseUrl}}/bpm/task-transfer-config/create
+Content-Type: application/json
+tenant-id: 1
+Authorization: Bearer {{token}}
+
+{
+  "fromUserId": 1,
+  "toUserId": 2,
+  "processDefinitionId": "test:1:abcd1234",
+  "startTime": 1735689600000,
+  "endTime": 1767225599000,
+  "reason": "自动转办"
+}
+
+### 请求 /bpm/task-transfer-config/update 接口 => 成功
+PUT {{baseUrl}}/bpm/task-transfer-config/update
+Content-Type: application/json
+tenant-id: 1
+Authorization: Bearer {{token}}
+
+{
+  "id": 1,
+  "fromUserId": 1,
+  "toUserId": 3,
+  "processDefinitionId": "test:1:abcd1234",
+  "startTime": 1735689600000,
+  "endTime": 1767225599000,
+  "reason": "改为他人处理"
+}
+
+### 请求 /bpm/task-transfer-config/delete 接口 => 成功
+DELETE {{baseUrl}}/bpm/task-transfer-config/delete?id=1
+tenant-id: 1
+Authorization: Bearer {{token}}
+
+### 请求 /bpm/task-transfer-config/get 接口 => 成功
+GET {{baseUrl}}/bpm/task-transfer-config/get?id=1
+tenant-id: 1
+Authorization: Bearer {{token}}
+
+### 请求 /bpm/task-transfer-config/page 接口 => 成功
+GET {{baseUrl}}/bpm/task-transfer-config/page?pageNo=1&pageSize=10&fromUserId=1
+tenant-id: 1
+Authorization: Bearer {{token}}

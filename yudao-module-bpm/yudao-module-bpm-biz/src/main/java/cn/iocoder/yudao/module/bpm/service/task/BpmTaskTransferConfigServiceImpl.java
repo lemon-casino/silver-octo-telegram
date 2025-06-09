@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.transfer.BpmTaskTran
 import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.transfer.BpmTaskTransferConfigSaveReqVO;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.task.BpmTaskTransferConfigDO;
 import cn.iocoder.yudao.module.bpm.dal.mysql.task.BpmTaskTransferConfigMapper;
+import cn.iocoder.yudao.module.bpm.enums.transfer.BpmTaskTransferStatusEnum;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
@@ -20,6 +21,7 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
     @Override
     public Long createTaskTransferConfig(BpmTaskTransferConfigSaveReqVO createReqVO) {
         BpmTaskTransferConfigDO config = BeanUtils.toBean(createReqVO, BpmTaskTransferConfigDO.class);
+        config.setStatus(calculateStatus(createReqVO.getStartTime(), createReqVO.getEndTime()));
         transferConfigMapper.insert(config);
         return config.getId();
     }
@@ -28,6 +30,7 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
     public void updateTaskTransferConfig(BpmTaskTransferConfigSaveReqVO updateReqVO) {
         validateExists(updateReqVO.getId());
         BpmTaskTransferConfigDO updateObj = BeanUtils.toBean(updateReqVO, BpmTaskTransferConfigDO.class);
+        updateObj.setStatus(calculateStatus(updateReqVO.getStartTime(), updateReqVO.getEndTime()));
         transferConfigMapper.updateById(updateObj);
     }
 
@@ -55,9 +58,20 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
     public PageResult<BpmTaskTransferConfigDO> getTaskTransferConfigPage(BpmTaskTransferConfigPageReqVO pageReqVO) {
         return transferConfigMapper.selectPage(pageReqVO);
     }
+    private Integer calculateStatus(Long startTime, Long endTime) {
+        long now = System.currentTimeMillis();
+        if (now < startTime) {
+            return BpmTaskTransferStatusEnum.WAIT.getStatus();
+        }
+        if (now > endTime) {
+            return BpmTaskTransferStatusEnum.EXPIRED.getStatus();
+        }
+        return BpmTaskTransferStatusEnum.RUNNING.getStatus();
+    }
+
     @Override
     public BpmTaskTransferConfigDO getActiveTaskTransferConfig(Long fromUserId, String processDefinitionId) {
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        Long now = System.currentTimeMillis();
         java.util.List<BpmTaskTransferConfigDO> list = transferConfigMapper.selectListByUser(fromUserId, processDefinitionId, now);
         if (list.isEmpty()) {
             list = transferConfigMapper.selectListByUser(fromUserId, null, now);

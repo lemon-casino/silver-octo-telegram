@@ -9,7 +9,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
 
 /**
  * 任务自动转办配置
@@ -31,10 +30,12 @@ public class BpmTaskTransferConfigDO extends BaseDO {
     private Long toUserId;
     /** 适用的流程定义编号，为空时表示全部流程 */
     private String processDefinitionId;
-    /** 开始时间 */
-    private LocalDateTime startTime;
-    /** 结束时间 */
-    private LocalDateTime endTime;
+    /** 开始时间，时间戳 */
+    private Long startTime;
+    /** 结束时间，时间戳 */
+    private Long endTime;
+    /** 状态 */
+    private Integer status;
     /** 备注 */
     private String reason;
 }

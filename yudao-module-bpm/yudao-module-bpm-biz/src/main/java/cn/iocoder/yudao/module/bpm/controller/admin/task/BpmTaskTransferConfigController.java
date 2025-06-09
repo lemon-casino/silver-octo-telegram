@@ -1,6 +1,8 @@
 package cn.iocoder.yudao.module.bpm.controller.admin.task;
 
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
+
+import cn.hutool.core.date.LocalDateTimeUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.transfer.BpmTaskTransferConfigPageReqVO;
@@ -58,7 +60,9 @@ public class BpmTaskTransferConfigController {
     @PreAuthorize("@ss.hasPermission('bpm:task-transfer-config:query')")
     public CommonResult<BpmTaskTransferConfigRespVO> get(@RequestParam("id") Long id) {
         BpmTaskTransferConfigDO config = transferConfigService.getTaskTransferConfig(id);
-        return success(BeanUtils.toBean(config, BpmTaskTransferConfigRespVO.class));
+        BpmTaskTransferConfigRespVO respVO = BeanUtils.toBean(config, BpmTaskTransferConfigRespVO.class);
+        respVO.setCreateTime(LocalDateTimeUtil.toEpochMilli(config.getCreateTime()));
+        return success(respVO);
     }
 
     @GetMapping("/page")
@@ -66,6 +70,14 @@ public class BpmTaskTransferConfigController {
     @PreAuthorize("@ss.hasPermission('bpm:task-transfer-config:query')")
     public CommonResult<PageResult<BpmTaskTransferConfigRespVO>> page(@Valid BpmTaskTransferConfigPageReqVO pageVO) {
         PageResult<BpmTaskTransferConfigDO> pageResult = transferConfigService.getTaskTransferConfigPage(pageVO);
-        return success(BeanUtils.toBean(pageResult, BpmTaskTransferConfigRespVO.class));
+        PageResult<BpmTaskTransferConfigRespVO> respPage = BeanUtils.toBean(pageResult, BpmTaskTransferConfigRespVO.class);
+        respPage.getList().forEach(item -> {
+            BpmTaskTransferConfigDO config = pageResult.getList().stream()
+                    .filter(c -> c.getId().equals(item.getId())).findFirst().orElse(null);
+            if (config != null && config.getCreateTime() != null) {
+                item.setCreateTime(LocalDateTimeUtil.toEpochMilli(config.getCreateTime()));
+            }
+        });
+        return success(respPage);
     }
 }
