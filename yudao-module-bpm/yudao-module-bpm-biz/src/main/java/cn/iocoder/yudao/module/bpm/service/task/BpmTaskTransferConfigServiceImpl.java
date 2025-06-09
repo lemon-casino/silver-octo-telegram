@@ -76,6 +76,16 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
         if (list.isEmpty()) {
             list = transferConfigMapper.selectListByUser(fromUserId, null, now);
         }
-        return list.isEmpty() ? null : list.get(0);
+        return list.isEmpty() ? null : list.getFirst();
     }
-}
+
+    @Override
+    public void putTaskTransferConfigrevoke(Long id) {
+        validateExists(id);
+        BpmTaskTransferConfigDO updateObj = new BpmTaskTransferConfigDO();
+        updateObj.setId(id);
+        updateObj.setStatus(BpmTaskTransferStatusEnum.CANCELED.getStatus());
+        transferConfigMapper.updateById(updateObj);
+      }
+
+    }

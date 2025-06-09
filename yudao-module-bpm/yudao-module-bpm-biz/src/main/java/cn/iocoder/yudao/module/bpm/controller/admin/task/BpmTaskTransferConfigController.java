@@ -1,15 +1,17 @@
 package cn.iocoder.yudao.module.bpm.controller.admin.task;
 
-import cn.iocoder.yudao.framework.common.pojo.CommonResult;
-
 import cn.hutool.core.date.LocalDateTimeUtil;
+import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.framework.common.util.collection.MapUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.transfer.BpmTaskTransferConfigPageReqVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.transfer.BpmTaskTransferConfigRespVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.transfer.BpmTaskTransferConfigSaveReqVO;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.task.BpmTaskTransferConfigDO;
 import cn.iocoder.yudao.module.bpm.service.task.BpmTaskTransferConfigService;
+import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
+import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,7 +31,8 @@ public class BpmTaskTransferConfigController {
 
     @Resource
     private BpmTaskTransferConfigService transferConfigService;
-
+    @Resource
+    private AdminUserApi adminUserApi;
     @PostMapping("/create")
     @Operation(summary = "创建转办配置")
     @PreAuthorize("@ss.hasPermission('bpm:task-transfer-config:create')")
@@ -70,14 +73,32 @@ public class BpmTaskTransferConfigController {
     @PreAuthorize("@ss.hasPermission('bpm:task-transfer-config:query')")
     public CommonResult<PageResult<BpmTaskTransferConfigRespVO>> page(@Valid BpmTaskTransferConfigPageReqVO pageVO) {
         PageResult<BpmTaskTransferConfigDO> pageResult = transferConfigService.getTaskTransferConfigPage(pageVO);
+        java.util.Set<Long> userIds = new java.util.HashSet<>();
+        pageResult.getList().forEach(c -> {
+            userIds.add(c.getFromUserId());
+            userIds.add(c.getToUserId());
+        });
+        java.util.Map<Long, AdminUserRespDTO> userMap = adminUserApi.getUserMap(userIds);
+
         PageResult<BpmTaskTransferConfigRespVO> respPage = BeanUtils.toBean(pageResult, BpmTaskTransferConfigRespVO.class);
         respPage.getList().forEach(item -> {
             BpmTaskTransferConfigDO config = pageResult.getList().stream()
                     .filter(c -> c.getId().equals(item.getId())).findFirst().orElse(null);
             if (config != null && config.getCreateTime() != null) {
                 item.setCreateTime(LocalDateTimeUtil.toEpochMilli(config.getCreateTime()));
+                MapUtils.findAndThen(userMap, config.getFromUserId(), u -> item.setFromUserName(u.getNickname()));
+                MapUtils.findAndThen(userMap, config.getToUserId(), u -> item.setToUserName(u.getNickname()));
             }
         });
         return success(respPage);
+    }
+
+    // 撤销功能 将当前id 的状态改为已撤销的状态
+    @PutMapping("/revoke")
+    @Operation(summary = "撤销代理")
+    @PreAuthorize("@ss.hasPermission('bpm:task-transfer-config:update')")
+    public CommonResult<Boolean> revoke(@RequestParam("id") Long id) {
+        transferConfigService.putTaskTransferConfigrevoke(id);
+        return success(true);
     }
 }

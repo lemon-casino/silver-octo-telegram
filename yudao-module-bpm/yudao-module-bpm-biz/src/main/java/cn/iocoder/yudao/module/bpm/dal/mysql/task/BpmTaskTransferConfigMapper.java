@@ -16,6 +16,7 @@ public interface BpmTaskTransferConfigMapper extends BaseMapperX<BpmTaskTransfer
                 .eqIfPresent(BpmTaskTransferConfigDO::getToUserId, reqVO.getToUserId())
                 .eqIfPresent(BpmTaskTransferConfigDO::getProcessDefinitionId, reqVO.getProcessDefinitionId())
                 .betweenIfPresent(BpmTaskTransferConfigDO::getCreateTime, reqVO.getCreateTime())
+                .eqIfPresent(BpmTaskTransferConfigDO::getStatus, reqVO.getStatus())
                 .orderByDesc(BpmTaskTransferConfigDO::getId));
     }
     default java.util.List<BpmTaskTransferConfigDO> selectListByUser(Long fromUserId, String processDefinitionId, Long now) {
