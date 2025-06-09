@@ -55,7 +55,6 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
     public PageResult<BpmTaskTransferConfigDO> getTaskTransferConfigPage(BpmTaskTransferConfigPageReqVO pageReqVO) {
         return transferConfigMapper.selectPage(pageReqVO);
     }
-
     @Override
     public BpmTaskTransferConfigDO getActiveTaskTransferConfig(Long fromUserId, String processDefinitionId) {
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
