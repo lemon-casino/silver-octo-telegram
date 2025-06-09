@@ -51,12 +51,19 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
 
     @Override
     public BpmTaskTransferConfigDO getTaskTransferConfig(Long id) {
-        return transferConfigMapper.selectById(id);
+        BpmTaskTransferConfigDO config = transferConfigMapper.selectById(id);
+        if (config == null) {
+            return null;
+        }
+        updateStatusIfNeeded(config);
+        return config;
     }
 
     @Override
     public PageResult<BpmTaskTransferConfigDO> getTaskTransferConfigPage(BpmTaskTransferConfigPageReqVO pageReqVO) {
-        return transferConfigMapper.selectPage(pageReqVO);
+        PageResult<BpmTaskTransferConfigDO> page = transferConfigMapper.selectPage(pageReqVO);
+        page.getList().forEach(this::updateStatusIfNeeded);
+        return page;
     }
     private Integer calculateStatus(Long startTime, Long endTime) {
         long now = System.currentTimeMillis();
@@ -67,6 +74,18 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
             return BpmTaskTransferStatusEnum.EXPIRED.getStatus();
         }
         return BpmTaskTransferStatusEnum.RUNNING.getStatus();
+    }
+
+
+    private void updateStatusIfNeeded(BpmTaskTransferConfigDO config) {
+        Integer newStatus = calculateStatus(config.getStartTime(), config.getEndTime());
+        if (!newStatus.equals(config.getStatus())) {
+            BpmTaskTransferConfigDO update = new BpmTaskTransferConfigDO();
+            update.setId(config.getId());
+            update.setStatus(newStatus);
+            transferConfigMapper.updateById(update);
+            config.setStatus(newStatus);
+        }
     }
 
     @Override
