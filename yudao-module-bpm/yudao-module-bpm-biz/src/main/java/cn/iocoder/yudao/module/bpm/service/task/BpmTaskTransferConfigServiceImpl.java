@@ -58,7 +58,6 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
     public PageResult<BpmTaskTransferConfigDO> getTaskTransferConfigPage(BpmTaskTransferConfigPageReqVO pageReqVO) {
         return transferConfigMapper.selectPage(pageReqVO);
     }
-
     private Integer calculateStatus(Long startTime, Long endTime) {
         long now = System.currentTimeMillis();
         if (now < startTime) {

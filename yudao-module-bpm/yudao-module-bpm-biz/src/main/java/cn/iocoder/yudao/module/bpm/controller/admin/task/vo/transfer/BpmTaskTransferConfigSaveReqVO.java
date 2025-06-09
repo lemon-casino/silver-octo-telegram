@@ -3,8 +3,6 @@ package cn.iocoder.yudao.module.bpm.controller.admin.task.vo.transfer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-
-
 @Schema(description = "管理后台 - 任务转办配置创建/修改 Request VO")
 @Data
 public class BpmTaskTransferConfigSaveReqVO {
@@ -22,7 +20,6 @@ public class BpmTaskTransferConfigSaveReqVO {
 
     @Schema(description = "流程定义编号")
     private String processDefinitionId;
-
     @Schema(description = "开始时间，时间戳", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "开始时间不能为空")
     private Long startTime;
