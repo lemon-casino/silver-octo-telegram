@@ -18,4 +18,12 @@ public interface BpmTaskTransferConfigMapper extends BaseMapperX<BpmTaskTransfer
                 .betweenIfPresent(BpmTaskTransferConfigDO::getCreateTime, reqVO.getCreateTime())
                 .orderByDesc(BpmTaskTransferConfigDO::getId));
     }
+    default java.util.List<BpmTaskTransferConfigDO> selectListByUser(Long fromUserId, String processDefinitionId, java.time.LocalDateTime now) {
+        return selectList(new LambdaQueryWrapperX<BpmTaskTransferConfigDO>()
+                .eq(BpmTaskTransferConfigDO::getFromUserId, fromUserId)
+                .eqIfPresent(BpmTaskTransferConfigDO::getProcessDefinitionId, processDefinitionId)
+                .le(BpmTaskTransferConfigDO::getStartTime, now)
+                .ge(BpmTaskTransferConfigDO::getEndTime, now)
+                .orderByDesc(BpmTaskTransferConfigDO::getId));
+    }
 }

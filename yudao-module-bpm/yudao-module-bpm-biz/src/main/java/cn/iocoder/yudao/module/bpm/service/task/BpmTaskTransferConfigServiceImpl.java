@@ -55,4 +55,13 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
     public PageResult<BpmTaskTransferConfigDO> getTaskTransferConfigPage(BpmTaskTransferConfigPageReqVO pageReqVO) {
         return transferConfigMapper.selectPage(pageReqVO);
     }
+    @Override
+    public BpmTaskTransferConfigDO getActiveTaskTransferConfig(Long fromUserId, String processDefinitionId) {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.util.List<BpmTaskTransferConfigDO> list = transferConfigMapper.selectListByUser(fromUserId, processDefinitionId, now);
+        if (list.isEmpty()) {
+            list = transferConfigMapper.selectListByUser(fromUserId, null, now);
+        }
+        return list.isEmpty() ? null : list.get(0);
+    }
 }
