@@ -11,9 +11,8 @@ import cn.iocoder.yudao.module.bpm.convert.task.BpmTaskConvert;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmFormDO;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmProcessDefinitionInfoDO;
 import cn.iocoder.yudao.module.bpm.enums.task.BpmCommentTypeEnum;
-import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.BpmnModelUtils;
-import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnVariableConstants;
+import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableUtils;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmFormService;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmModelService;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmProcessDefinitionService;
@@ -29,8 +28,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.flowable.bpmn.model.BpmnModel;
-import org.flowable.bpmn.model.FlowElement;
 import org.flowable.bpmn.model.UserTask;
 import org.flowable.engine.TaskService;
 import org.flowable.engine.history.HistoricProcessInstance;
@@ -363,6 +360,15 @@ public class BpmTaskController {
             reqVO.setManagerial(modelService.isUserProcessInstanceModelManager(currentUserId, reqVO.getProcessInstanceId()));
         }
         bpmTaskService.returnTask(currentUserId, reqVO);
+        return success(true);
+    }
+
+    //忽略 Task 编号，将流程实例直接跳转到指定的 targetDefinitionKey 节点 用于有任务 无执行实体的返回
+    @PutMapping("/return01")
+    @Operation(summary = "退回任务", description = "用于【流程详情】的【退回】按钮")
+    @PreAuthorize("@ss.hasPermission('bpm:task:update')")
+    public CommonResult<Boolean> returnTaskNoTaskId(@Valid @RequestBody BpmTaskReturnReqVO reqVO) {
+        bpmTaskService.returnTask(reqVO.getProcessInstanceId(),reqVO.getTargetTaskDefinitionKey());
         return success(true);
     }
 

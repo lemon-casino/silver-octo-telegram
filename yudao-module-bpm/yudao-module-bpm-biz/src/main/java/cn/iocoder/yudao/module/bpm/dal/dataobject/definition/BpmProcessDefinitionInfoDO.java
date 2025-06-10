@@ -153,7 +153,7 @@ public class BpmProcessDefinitionInfoDO extends BaseDO {
     private List<Long> managerUserIds;
 
     /**
-     * 是否允许撤销审批中的申请
+     * 是否允许撤销的申请
      */
     private Boolean allowCancelRunningProcess;
 

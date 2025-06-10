@@ -208,6 +208,13 @@ public interface BpmTaskService {
     void returnTask(Long userId, BpmTaskReturnReqVO reqVO);
 
     /**
+     * 忽略 Task 编号，将流程实例直接跳转到指定的 targetDefinitionKey 节点
+     *
+     * @param processInstanceId 流程实例编号
+     * @param targetTaskDefinitionKey 目标任务定义 Key
+     */
+    void returnTask(String processInstanceId, String targetTaskDefinitionKey);
+    /**
      * 将指定任务委派给其他人处理，等接收人处理后再回到原审批人手中审批
      *
      * @param userId 用户编号

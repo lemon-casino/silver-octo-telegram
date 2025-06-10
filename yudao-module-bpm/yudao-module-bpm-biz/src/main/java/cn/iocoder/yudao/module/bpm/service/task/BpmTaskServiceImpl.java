@@ -15,6 +15,7 @@ import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.task.*;
 import cn.iocoder.yudao.module.bpm.convert.task.BpmTaskConvert;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmFormDO;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmProcessDefinitionInfoDO;
+import cn.iocoder.yudao.module.bpm.dal.dataobject.task.BpmTaskTransferConfigDO;
 import cn.iocoder.yudao.module.bpm.enums.definition.*;
 import cn.iocoder.yudao.module.bpm.enums.task.BpmCommentTypeEnum;
 import cn.iocoder.yudao.module.bpm.enums.task.BpmReasonEnum;
@@ -33,8 +34,6 @@ import cn.iocoder.yudao.module.bpm.service.message.dto.BpmMessageSendWhenTaskTim
 import cn.iocoder.yudao.module.bpm.service.task.cmd.BackTaskCmd;
 import cn.iocoder.yudao.module.bpm.service.task.dto.BpmMultiInstanceMessageDTO;
 import cn.iocoder.yudao.module.bpm.service.worktime.BpmWorkTimeService;
-import cn.iocoder.yudao.module.bpm.dal.dataobject.task.BpmTaskTransferConfigDO;
-import cn.iocoder.yudao.module.bpm.service.task.BpmTaskTransferConfigService;
 import cn.iocoder.yudao.module.system.api.dept.DeptApi;
 import cn.iocoder.yudao.module.system.api.dept.dto.DeptRespDTO;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
@@ -1220,6 +1219,21 @@ public class BpmTaskServiceImpl implements BpmTaskService {
             }
         });
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void returnTask(String processInstanceId, String targetTaskDefinitionKey) {
+        log.info("[returnTask][processInstanceId({}) 跳转到节点({})]", processInstanceId, targetTaskDefinitionKey);
+
+        List<Task> taskList = getRunningTaskListByProcessInstanceId(processInstanceId, null, null);
+        if (CollUtil.isEmpty(taskList)) {
+            throw new FlowableObjectNotFoundException("processInstanceId " + processInstanceId + " doesn't have running task", Task.class);
+        }
+
+        Task task = taskList.getFirst();
+        managementService.executeCommand(new BackTaskCmd(runtimeService, task.getId(), targetTaskDefinitionKey));
+    }
+
 
     @Override
     @Transactional(rollbackFor = Exception.class)
