@@ -64,6 +64,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.core.task.AsyncListenableTaskExecutor;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -117,6 +118,11 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     private BpmWorkTimeService workTimeService;
     @Resource
     private BpmTaskTransferConfigService taskTransferConfigService;
+    /**
+     * 任务执行器，用于在事务提交后异步处理自动审批等逻辑，避免与流程引擎的事务冲突
+     */
+    @Resource(name = "applicationTaskExecutor")
+    private AsyncListenableTaskExecutor taskExecutor;
 
 
     @Resource
@@ -1190,32 +1196,46 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                     return;
                 }
 
-                BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(instance.getProcessDefinitionId());
-                FlowElement targetElement = BpmnModelUtils.getFlowElementById(bpmnModel, reqVO.getTargetTaskDefinitionKey());
-                Integer approveType = BpmnModelUtils.parseApproveType(targetElement);
-                if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.USER.getType())) {
-                    return;
-                }
-
-                List<Task> targetTasks = taskService.createTaskQuery()
-                        .processInstanceId(instance.getId())
-                        .taskDefinitionKey(reqVO.getTargetTaskDefinitionKey())
-                        .list();
-                if (CollUtil.isEmpty(targetTasks)) {
-                    log.warn("[returnTask][processInstance({}) node({}) 未找到自动审批任务]",
-                            instance.getId(), reqVO.getTargetTaskDefinitionKey());
-                    return;
-                }
-
-                for (Task targetTask : targetTasks) {
-                    if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_APPROVE.getType())) {
-                        getSelf().approveTask(null, new BpmTaskApproveReqVO().setId(targetTask.getId())
-                                .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_APPROVE.getReason()));
-                    } else if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_REJECT.getType())) {
-                        getSelf().rejectTask(null, new BpmTaskRejectReqVO().setId(targetTask.getId())
-                                .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_REJECT.getReason()));
+                taskExecutor.execute(() -> {
+                    BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(instance.getProcessDefinitionId());
+                    FlowElement targetElement = BpmnModelUtils.getFlowElementById(bpmnModel, reqVO.getTargetTaskDefinitionKey());
+                    Integer approveType = BpmnModelUtils.parseApproveType(targetElement);
+                    if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.USER.getType())) {
+                        return;
                     }
-                }
+
+                    List<Task> targetTasks = new ArrayList<>();
+                    for (int i = 0; i < 10 && CollUtil.isEmpty(targetTasks); i++) {
+                        targetTasks = taskService.createTaskQuery()
+                                .processInstanceId(instance.getId())
+                                .taskDefinitionKey(reqVO.getTargetTaskDefinitionKey())
+                                .list();
+                        if (CollUtil.isNotEmpty(targetTasks)) {
+                            break;
+                        }
+                        try {
+                            Thread.sleep(500);
+                        } catch (InterruptedException ignore) {
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+                    }
+                    if (CollUtil.isEmpty(targetTasks)) {
+                        log.warn("[returnTask][processInstance({}) node({}) 未找到自动审批任务]",
+                                instance.getId(), reqVO.getTargetTaskDefinitionKey());
+                        return;
+                    }
+
+                    for (Task targetTask : targetTasks) {
+                        if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_APPROVE.getType())) {
+                            getSelf().approveTask(null, new BpmTaskApproveReqVO().setId(targetTask.getId())
+                                    .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_APPROVE.getReason()));
+                        } else if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_REJECT.getType())) {
+                            getSelf().rejectTask(null, new BpmTaskRejectReqVO().setId(targetTask.getId())
+                                    .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_REJECT.getReason()));
+                        }
+                    }
+                });
             }
         });
     }
