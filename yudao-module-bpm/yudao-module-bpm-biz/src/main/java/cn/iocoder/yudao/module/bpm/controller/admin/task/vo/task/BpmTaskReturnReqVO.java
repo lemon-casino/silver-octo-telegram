@@ -11,6 +11,7 @@ import lombok.ToString;
 public class BpmTaskReturnReqVO {
 
     @Schema(description = "任务编号taskId", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
+    @NotEmpty(message = "任务编号不能为空")
     private String id;
     @Schema(description = "流程实例编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
     private String processInstanceId;

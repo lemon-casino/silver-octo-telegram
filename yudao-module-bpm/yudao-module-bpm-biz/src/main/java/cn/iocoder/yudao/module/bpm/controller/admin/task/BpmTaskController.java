@@ -367,8 +367,9 @@ public class BpmTaskController {
     @PutMapping("/return01")
     @Operation(summary = "退回任务", description = "用于【流程详情】的【退回】按钮")
     @PreAuthorize("@ss.hasPermission('bpm:task:update')")
-    public CommonResult<Boolean> returnTaskNoTaskId(@Valid @RequestBody BpmTaskReturnReqVO reqVO) {
-        bpmTaskService.returnTask(reqVO.getProcessInstanceId(),reqVO.getTargetTaskDefinitionKey());
+    public CommonResult<Boolean> returnTaskNoTaskId( @RequestParam("ProcessInstanceId") String  ProcessInstanceId, @RequestParam("TargetTaskDefinitionKey") String TargetTaskDefinitionKey ) {
+        //ProcessInstanceId 当前流程实例编号    TargetTaskDefinitionKey 目标节点
+        bpmTaskService.returnTask(ProcessInstanceId,TargetTaskDefinitionKey);
         return success(true);
     }
 
