@@ -364,7 +364,7 @@ public class BpmTaskController {
     }
 
     //忽略 Task 编号，将流程实例直接跳转到指定的 targetDefinitionKey 节点 用于有任务 无执行实体的返回
-    @PutMapping("/return01")
+    @PutMapping("/returnOne")
     @Operation(summary = "退回任务", description = "用于【流程详情】的【退回】按钮")
     @PreAuthorize("@ss.hasPermission('bpm:task:update')")
     public CommonResult<Boolean> returnTaskNoTaskId( @RequestParam("ProcessInstanceId") String  ProcessInstanceId, @RequestParam("TargetTaskDefinitionKey") String TargetTaskDefinitionKey ) {
