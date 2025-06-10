@@ -1483,6 +1483,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     // ========== Event 事件相关方法 ==========
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void processTaskCreated(Task task) {
         // 1. 设置为待办中
         Integer status = (Integer) task.getTaskLocalVariables().get(BpmnVariableConstants.TASK_VARIABLE_STATUS);
