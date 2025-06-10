@@ -9,7 +9,7 @@
 			"hostGroup":[
 				{
 					"env":"local",
-					"url":"http://localhost:48081/admin-api"
+					"url":"http://localhost:48080/admin-api"
 				}
 			],
 			"name":"yudao-module-bpm-biz"

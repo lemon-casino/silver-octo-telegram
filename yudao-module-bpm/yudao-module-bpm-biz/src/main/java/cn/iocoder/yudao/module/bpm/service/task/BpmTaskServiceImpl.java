@@ -60,6 +60,7 @@ import org.flowable.task.api.history.HistoricTaskInstance;
 import org.flowable.task.api.history.HistoricTaskInstanceQuery;
 import org.flowable.task.service.impl.persistence.entity.TaskEntity;
 import org.flowable.task.service.impl.persistence.entity.TaskEntityImpl;
+import org.springframework.core.task.AsyncListenableTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -118,7 +119,11 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     @Resource
     private BpmTaskTransferConfigService taskTransferConfigService;
 
-
+    /**
+     * 任务执行器，用于在事务提交后异步处理自动审批等逻辑，避免与流程引擎的事务冲突
+     */
+    @Resource(name = "applicationTaskExecutor")
+    private AsyncListenableTaskExecutor taskExecutor;
     @Resource
     private AdminUserApi adminUserApi;
     @Resource
@@ -1182,42 +1187,6 @@ public class BpmTaskServiceImpl implements BpmTaskService {
 
         log.info("[returnTask][任务({}) 跳转到节点({})]", task.getId(), reqVO.getTargetTaskDefinitionKey());
         managementService.executeCommand(new BackTaskCmd(runtimeService, task.getId(), reqVO.getTargetTaskDefinitionKey()));
-        // 4.1 如果目标节点配置为自动审批，在事务提交后自动完成该任务
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (!ObjectUtil.equal(status, TransactionSynchronization.STATUS_COMMITTED)) {
-                    return;
-                }
-
-                BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(instance.getProcessDefinitionId());
-                FlowElement targetElement = BpmnModelUtils.getFlowElementById(bpmnModel, reqVO.getTargetTaskDefinitionKey());
-                Integer approveType = BpmnModelUtils.parseApproveType(targetElement);
-                if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.USER.getType())) {
-                    return;
-                }
-
-                List<Task> targetTasks = taskService.createTaskQuery()
-                        .processInstanceId(instance.getId())
-                        .taskDefinitionKey(reqVO.getTargetTaskDefinitionKey())
-                        .list();
-                if (CollUtil.isEmpty(targetTasks)) {
-                    log.warn("[returnTask][processInstance({}) node({}) 未找到自动审批任务]",
-                            instance.getId(), reqVO.getTargetTaskDefinitionKey());
-                    return;
-                }
-
-                for (Task targetTask : targetTasks) {
-                    if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_APPROVE.getType())) {
-                        getSelf().approveTask(null, new BpmTaskApproveReqVO().setId(targetTask.getId())
-                                .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_APPROVE.getReason()));
-                    } else if (ObjectUtil.equal(approveType, BpmUserTaskApproveTypeEnum.AUTO_REJECT.getType())) {
-                        getSelf().rejectTask(null, new BpmTaskRejectReqVO().setId(targetTask.getId())
-                                .setReason(BpmReasonEnum.APPROVE_TYPE_AUTO_REJECT.getReason()));
-                    }
-                }
-            }
-        });
     }
 
     @Override
