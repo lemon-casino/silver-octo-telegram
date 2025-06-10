@@ -22,6 +22,5 @@ public class BpmTaskTransferReqVO {
     @NotEmpty(message = "转办原因不能为空")
     private String reason;
     @Schema(description = "是否是管理员", requiredMode = Schema.RequiredMode.REQUIRED, example = "是否是管理员")
-    @NotEmpty
     private Boolean managerial=false;
 }

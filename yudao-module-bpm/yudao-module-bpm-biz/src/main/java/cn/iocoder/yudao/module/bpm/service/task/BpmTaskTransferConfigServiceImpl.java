@@ -11,6 +11,8 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
+import java.util.Objects;
+
 @Service
 @Validated
 public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigService {
@@ -79,7 +81,7 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
 
     private void updateStatusIfNeeded(BpmTaskTransferConfigDO config) {
         Integer newStatus = calculateStatus(config.getStartTime(), config.getEndTime());
-        if (!newStatus.equals(config.getStatus())) {
+        if (!newStatus.equals(config.getStatus())&& !Objects.equals(config.getStatus(), BpmTaskTransferStatusEnum.CANCELED.getStatus())) {
             BpmTaskTransferConfigDO update = new BpmTaskTransferConfigDO();
             update.setId(config.getId());
             update.setStatus(newStatus);
