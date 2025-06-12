@@ -19,7 +19,7 @@ public interface BpmTaskTransferConfigService {
 
     PageResult<BpmTaskTransferConfigDO> getTaskTransferConfigPage(BpmTaskTransferConfigPageReqVO pageReqVO);
   
-    BpmTaskTransferConfigDO getActiveTaskTransferConfig(Long fromUserId, String processDefinitionId);
+    BpmTaskTransferConfigDO getActiveTaskTransferConfig(Long fromUserId, String modelId, Integer modelVersion);
 
     void putTaskTransferConfigrevoke(Long id);
 }

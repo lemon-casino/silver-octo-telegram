@@ -25,8 +25,11 @@ public class BpmTaskTransferConfigSaveReqVO {
     @Schema(description = "新审批人用户姓名", requiredMode = Schema.RequiredMode.REQUIRED, example = "2")
     private String toUserName;
 
-    @Schema(description = "流程定义编号")
-    private String processDefinitionId;
+    @Schema(description = "流程模型编号")
+    private String modelId;
+
+    @Schema(description = "流程版本号")
+    private Integer modelVersion;
     @Schema(description = "开始时间，时间戳", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "开始时间不能为空")
     private Long startTime;

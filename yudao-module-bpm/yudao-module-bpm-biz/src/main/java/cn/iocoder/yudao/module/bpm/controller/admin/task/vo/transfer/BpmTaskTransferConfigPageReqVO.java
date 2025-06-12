@@ -18,8 +18,11 @@ public class BpmTaskTransferConfigPageReqVO extends PageParam {
     @Schema(description = "新审批人用户编号", example = "2")
     private Long toUserId;
 
-    @Schema(description = "流程定义编号")
-    private String processDefinitionId;
+    @Schema(description = "流程模型编号")
+    private String modelId;
+
+    @Schema(description = "流程版本号")
+    private Integer modelVersion;
 
     @Schema(description = "创建时间")
     @DateTimeFormat(pattern = DateUtils.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND)
