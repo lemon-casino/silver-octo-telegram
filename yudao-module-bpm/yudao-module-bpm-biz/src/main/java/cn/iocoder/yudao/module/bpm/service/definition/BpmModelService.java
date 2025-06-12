@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.bpm.service.definition;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelSaveReqVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.BpmSimpleModelNodeVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.BpmSimpleModelUpdateReqVO;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionRespVO;
 import jakarta.validation.Valid;
 import org.flowable.bpmn.model.BpmnModel;
 import org.flowable.engine.repository.Model;
@@ -139,5 +140,12 @@ public interface BpmModelService {
      * @return 是否为管理员
      */
     boolean isUserProcessInstanceModelManager(Long userId, String processInstanceId);
+
+    /**
+     * 获取所有流程模型以及对应的版本号列表
+     *
+     * @return 模型版本信息列表
+     */
+    List<BpmModelVersionRespVO> getModelVersionList();
 
 }

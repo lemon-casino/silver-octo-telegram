@@ -14,6 +14,7 @@ import cn.iocoder.yudao.module.bpm.service.definition.BpmModelService;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmProcessDefinitionService;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
 import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionRespVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -192,6 +193,12 @@ public class BpmModelController {
     @Parameter(name = "modelId", description = "流程模型编号", required = true, example = "a2c5eee0-eb6c-11ee-abf4-0c37967c420a")
     public CommonResult<BpmSimpleModelNodeVO> getSimpleModel(@RequestParam("id") String modelId){
         return success(modelService.getSimpleModel(modelId));
+    }
+
+    @GetMapping("/version-list")
+    @Operation(summary = "获得流程模型版本列表")
+    public CommonResult<List<BpmModelVersionRespVO>> getModelVersionList() {
+        return success(modelService.getModelVersionList());
     }
 
     @Deprecated

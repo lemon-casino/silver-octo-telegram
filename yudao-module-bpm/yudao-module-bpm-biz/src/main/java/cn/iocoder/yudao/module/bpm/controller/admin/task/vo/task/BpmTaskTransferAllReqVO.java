@@ -28,4 +28,10 @@ public class BpmTaskTransferAllReqVO {
     @Schema(description = "转办原因", requiredMode = Schema.RequiredMode.REQUIRED, example = "人员变动")
     @NotEmpty(message = "转办原因不能为空")
     private String reason;
+
+    @Schema(description = "流程模型编号", example = "a2c5eee0")
+    private String modelId;
+
+    @Schema(description = "流程版本号", example = "1")
+    private Integer version;
 }
