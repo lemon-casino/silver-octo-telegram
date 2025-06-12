@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
@@ -65,16 +66,32 @@ public class BpmProcessInstanceCopyController {
         // 拼接返回
         Map<String, HistoricProcessInstance> processInstanceMap = processInstanceService.getHistoricProcessInstanceMap(
                 convertSet(pageResult.getList(), BpmProcessInstanceCopyDO::getProcessInstanceId));
+
         Map<Long, AdminUserRespDTO> userMap = adminUserApi.getUserMap(convertListByFlatMap(pageResult.getList(),
-                copy -> Stream.of(copy.getStartUserId(), Long.parseLong(copy.getCreator()))));
+                copy -> Stream.of(copy.getStartUserId(),
+                        Optional.ofNullable(copy.getCreator())  // 处理可能为null的值
+                                .filter(creator -> !creator.trim().isEmpty()) // 确保不为空且为有效数字
+                                .map(Long::parseLong) // 将字符串转换为Long
+                                .orElse(null)))); // 如果为null，返回null
+
         Map<String, BpmProcessDefinitionInfoDO> processDefinitionInfoMap = processDefinitionService.getProcessDefinitionInfoMap(
                 convertSet(pageResult.getList(), BpmProcessInstanceCopyDO::getProcessDefinitionId));
+
         return success(convertPage(pageResult, copy -> {
             BpmProcessInstanceCopyRespVO copyVO = BeanUtils.toBean(copy, BpmProcessInstanceCopyRespVO.class);
-            MapUtils.findAndThen(userMap, Long.valueOf(copy.getCreator()),
+
+            // 确保creator不为空
+            Long creatorId = Optional.ofNullable(copy.getCreator())
+                    .filter(creator -> !creator.trim().isEmpty())
+                    .map(Long::parseLong)
+                    .orElse(null);
+
+            MapUtils.findAndThen(userMap, creatorId,
                     user -> copyVO.setStartUser(BeanUtils.toBean(user, UserSimpleBaseVO.class)));
+
             MapUtils.findAndThen(userMap, copy.getStartUserId(),
                     user -> copyVO.setCreateUser(BeanUtils.toBean(user, UserSimpleBaseVO.class)));
+
             MapUtils.findAndThen(processInstanceMap, copyVO.getProcessInstanceId(),
                     processInstance -> {
                         copyVO.setSummary(FlowableUtils.getSummary(
@@ -82,8 +99,8 @@ public class BpmProcessInstanceCopyController {
                                 processInstance.getProcessVariables()));
                         copyVO.setProcessInstanceStartTime(DateUtils.of(processInstance.getStartTime()));
                     });
+
             return copyVO;
         }));
     }
-
 }
