@@ -21,6 +21,8 @@ import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.BpmnModelUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.SimpleModelUtils;
 import cn.iocoder.yudao.module.bpm.service.task.BpmProcessInstanceCopyService;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionRespVO;
+import cn.iocoder.yudao.module.bpm.dal.mysql.definition.BpmProcessDefinitionInfoMapper;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +47,8 @@ import org.springframework.validation.annotation.Validated;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertMap;
@@ -80,6 +84,8 @@ public class BpmModelServiceImpl implements BpmModelService {
     private TaskService taskService;
     @Resource
     private BpmProcessInstanceCopyService processInstanceCopyService;
+    @Resource
+    private BpmProcessDefinitionInfoMapper processDefinitionInfoMapper;
 
     @Override
     public List<Model> getModelList(String name) {
@@ -483,6 +489,31 @@ public class BpmModelServiceImpl implements BpmModelService {
 //            log.error("[isUserProcessInstanceModelManager][检查权限异常] userId={}, processInstanceId={}", userId, processInstanceId, e);
             return false;
         }
+    }
+
+    @Override
+    public List<BpmModelVersionRespVO> getModelVersionList() {
+        List<Model> models = getModelList(null);
+        if (CollUtil.isEmpty(models)) {
+            return new ArrayList<>();
+        }
+        List<BpmModelVersionRespVO> result = new ArrayList<>(models.size());
+        for (Model model : models) {
+            List<BpmProcessDefinitionInfoDO> infos = processDefinitionInfoMapper.selectListByModelId(model.getId());
+            List<Integer> versions = infos.stream()
+                    .map(info -> processDefinitionService.getProcessDefinition(info.getProcessDefinitionId()))
+                    .filter(Objects::nonNull)
+                    .map(ProcessDefinition::getVersion)
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.toList());
+            BpmModelVersionRespVO vo = new BpmModelVersionRespVO();
+            vo.setId(model.getId());
+            vo.setName(model.getName());
+            vo.setVersions(versions);
+            result.add(vo);
+        }
+        return result;
     }
 
 }

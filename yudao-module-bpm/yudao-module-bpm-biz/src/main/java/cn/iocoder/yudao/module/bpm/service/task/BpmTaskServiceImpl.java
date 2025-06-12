@@ -1940,6 +1940,19 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                 .taskAssignee(String.valueOf(reqVO.getFromUserId()))
                 .active()
                 .list();
+        if (StrUtil.isNotBlank(reqVO.getModelId())) {
+            taskList = taskList.stream().filter(task -> {
+                BpmProcessDefinitionInfoDO info = bpmProcessDefinitionService.getProcessDefinitionInfo(task.getProcessDefinitionId());
+                if (info == null || !reqVO.getModelId().equals(info.getModelId())) {
+                    return false;
+                }
+                if (reqVO.getVersion() != null) {
+                    ProcessDefinition definition = bpmProcessDefinitionService.getProcessDefinition(task.getProcessDefinitionId());
+                    return definition != null && definition.getVersion() == reqVO.getVersion();
+                }
+                return true;
+            }).toList();
+        }
         if (CollUtil.isEmpty(taskList)) {
             return;
         }
