@@ -14,15 +14,17 @@ public interface BpmTaskTransferConfigMapper extends BaseMapperX<BpmTaskTransfer
         return selectPage(reqVO, new LambdaQueryWrapperX<BpmTaskTransferConfigDO>()
                 .eqIfPresent(BpmTaskTransferConfigDO::getFromUserId, reqVO.getFromUserId())
                 .eqIfPresent(BpmTaskTransferConfigDO::getToUserId, reqVO.getToUserId())
-                .eqIfPresent(BpmTaskTransferConfigDO::getProcessDefinitionId, reqVO.getProcessDefinitionId())
+                .eqIfPresent(BpmTaskTransferConfigDO::getModelId, reqVO.getModelId())
+                .eqIfPresent(BpmTaskTransferConfigDO::getModelVersion, reqVO.getModelVersion())
                 .betweenIfPresent(BpmTaskTransferConfigDO::getCreateTime, reqVO.getCreateTime())
                 .eqIfPresent(BpmTaskTransferConfigDO::getStatus, reqVO.getStatus())
                 .orderByDesc(BpmTaskTransferConfigDO::getId));
     }
-    default java.util.List<BpmTaskTransferConfigDO> selectListByUser(Long fromUserId, String processDefinitionId, Long now) {
+    default java.util.List<BpmTaskTransferConfigDO> selectListByUser(Long fromUserId, String modelId, Integer modelVersion, Long now) {
         return selectList(new LambdaQueryWrapperX<BpmTaskTransferConfigDO>()
                 .eq(BpmTaskTransferConfigDO::getFromUserId, fromUserId)
-                .eqIfPresent(BpmTaskTransferConfigDO::getProcessDefinitionId, processDefinitionId)
+                .eqIfPresent(BpmTaskTransferConfigDO::getModelId, modelId)
+                .eqIfPresent(BpmTaskTransferConfigDO::getModelVersion, modelVersion)
                 .le(BpmTaskTransferConfigDO::getStartTime, now)
                 .ge(BpmTaskTransferConfigDO::getEndTime, now)
                 .ne(BpmTaskTransferConfigDO::getStatus, cn.iocoder.yudao.module.bpm.enums.transfer.BpmTaskTransferStatusEnum.CANCELED.getStatus())

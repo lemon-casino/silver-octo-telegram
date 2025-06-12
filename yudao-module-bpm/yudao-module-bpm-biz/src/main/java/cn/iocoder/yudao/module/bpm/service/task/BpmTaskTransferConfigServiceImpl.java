@@ -91,11 +91,11 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
     }
 
     @Override
-    public BpmTaskTransferConfigDO getActiveTaskTransferConfig(Long fromUserId, String processDefinitionId) {
+    public BpmTaskTransferConfigDO getActiveTaskTransferConfig(Long fromUserId, String modelId, Integer modelVersion) {
         Long now = System.currentTimeMillis();
-        java.util.List<BpmTaskTransferConfigDO> list = transferConfigMapper.selectListByUser(fromUserId, processDefinitionId, now);
+        java.util.List<BpmTaskTransferConfigDO> list = transferConfigMapper.selectListByUser(fromUserId, modelId, modelVersion, now);
         if (list.isEmpty()) {
-            list = transferConfigMapper.selectListByUser(fromUserId, null, now);
+            list = transferConfigMapper.selectListByUser(fromUserId, null, null, now);
         }
         return list.isEmpty() ? null : list.getFirst();
     }
