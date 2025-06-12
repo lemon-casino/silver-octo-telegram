@@ -50,6 +50,7 @@ import org.flowable.engine.RuntimeService;
 import org.flowable.engine.TaskService;
 import org.flowable.engine.history.HistoricActivityInstance;
 import org.flowable.engine.history.HistoricProcessInstance;
+import org.flowable.engine.repository.ProcessDefinition;
 import org.flowable.engine.runtime.Execution;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.task.api.DelegationState;
@@ -1617,6 +1618,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void processTaskAssigned(Task task) {
         // 发送通知。在事务提交时，批量执行操作，所以直接查询会无法查询到 ProcessInstance，所以这里是通过监听事务的提交来实现。
         registerAfterTransaction(task, t -> {
@@ -1733,43 +1735,43 @@ public class BpmTaskServiceImpl implements BpmTaskService {
             BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(t.getProcessDefinitionId());
             FlowElement flowElement = BpmnModelUtils.getFlowElementById(bpmnModel, t.getTaskDefinitionKey());
 
-                // 检查是否是会签节点
-                boolean IsMultiInstance=false;
-                UserTask userTask = (UserTask) flowElement;
-                // 判断是否是会签节点
-                IsMultiInstance = userTask != null && userTask.getLoopCharacteristics() != null && !((MultiInstanceLoopCharacteristics) userTask.getLoopCharacteristics()).isSequential();
-                log.info("[processTaskAssigned][任务({})是否为会签节点: {}]", task.getId(), IsMultiInstance);
-                IsMultiInstance = IsMultiInstance || (userTask != null && isInParallelGateway(userTask));
-                log.info("[processTaskAssigned][任务({})是否并行包容节点: {}]", task.getId(), isInParallelGateway(userTask));
-                System.out.println(IsMultiInstance);
-                if (IsMultiInstance) {
-                    // 记录会签信息
-                    BpmMultiInstanceMessageDTO multiInstanceMessage = collectMultiInstanceMessage(processInstance, userTask);
-                    log.info("[processTaskAssigned][会签节点({})已审批人数: {}, 已拒绝人数: {}]",
-                            task.getId(),
-                            multiInstanceMessage.getApproveUserIds().size(),
-                            multiInstanceMessage.getRejectUserIds().size());
+            // 检查是否是会签节点
+            boolean IsMultiInstance=false;
+            UserTask userTask = (UserTask) flowElement;
+            // 判断是否是会签节点
+            IsMultiInstance = userTask != null && userTask.getLoopCharacteristics() != null && !((MultiInstanceLoopCharacteristics) userTask.getLoopCharacteristics()).isSequential();
+            log.info("[processTaskAssigned][任务({})是否为会签节点: {}]", task.getId(), IsMultiInstance);
+            IsMultiInstance = IsMultiInstance || (userTask != null && isInParallelGateway(userTask));
+            log.info("[processTaskAssigned][任务({})是否并行包容节点: {}]", task.getId(), isInParallelGateway(userTask));
+            System.out.println(IsMultiInstance);
+            if (IsMultiInstance) {
+                // 记录会签信息
+                BpmMultiInstanceMessageDTO multiInstanceMessage = collectMultiInstanceMessage(processInstance, userTask);
+                log.info("[processTaskAssigned][会签节点({})已审批人数: {}, 已拒绝人数: {}]",
+                        task.getId(),
+                        multiInstanceMessage.getApproveUserIds().size(),
+                        multiInstanceMessage.getRejectUserIds().size());
 
-                }
-
-                // 注意：需要基于 instance 设置租户编号，避免 Flowable 内部异步时，丢失租户编号
-
-                boolean finalIsMultiInstance = IsMultiInstance;
-                FlowableUtils.execute(processInstance.getTenantId(), () -> {
-                    // 获取流程实例发起人ID，优先使用流程变量中的PROCESS_START_USER_ID
-                    Long startUserId = FlowableUtils.getProcessInstanceStartUserId(processInstance);
-                    log.info("[processTaskAssigned][任务({})通知获取发起人ID: {}]", task.getId(), startUserId);
-                    AdminUserRespDTO startUser = adminUserApi.getUser(startUserId);
-                    // 在流程中判断是否是委派或者是转办          taskService.setVariableLocal(task.getId(), BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_IS_DELEGATE,2);
-                    Integer  is_delegate = (Integer) taskService.getVariableLocal(task.getId(), BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_IS_DELEGATE);
-                    log.info("[委派或者是转办    ][----> {}]", is_delegate);
-                    //如果
-                    messageService.sendMessageWhenTaskAssigned(BpmTaskConvert.INSTANCE.convert(processInstance, startUser, task), finalIsMultiInstance,is_delegate);
-                });
             }
 
-        });
-    }
+            // 注意：需要基于 instance 设置租户编号，避免 Flowable 内部异步时，丢失租户编号
+
+            boolean finalIsMultiInstance = IsMultiInstance;
+            FlowableUtils.execute(processInstance.getTenantId(), () -> {
+                // 获取流程实例发起人ID，优先使用流程变量中的PROCESS_START_USER_ID
+                Long startUserId = FlowableUtils.getProcessInstanceStartUserId(processInstance);
+                log.info("[processTaskAssigned][任务({})通知获取发起人ID: {}]", task.getId(), startUserId);
+                AdminUserRespDTO startUser = adminUserApi.getUser(startUserId);
+                // 在流程中判断是否是委派或者是转办          taskService.setVariableLocal(task.getId(), BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_IS_DELEGATE,2);
+                Integer  is_delegate = (Integer) taskService.getVariableLocal(task.getId(), BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_IS_DELEGATE);
+                log.info("[委派或者是转办    ][----> {}]", is_delegate);
+                //如果
+                messageService.sendMessageWhenTaskAssigned(BpmTaskConvert.INSTANCE.convert(processInstance, startUser, task), finalIsMultiInstance,is_delegate);
+            });
+        }
+        );
+    };
+
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -2075,3 +2077,8 @@ public class BpmTaskServiceImpl implements BpmTaskService {
 
 
 }
+
+
+
+
+

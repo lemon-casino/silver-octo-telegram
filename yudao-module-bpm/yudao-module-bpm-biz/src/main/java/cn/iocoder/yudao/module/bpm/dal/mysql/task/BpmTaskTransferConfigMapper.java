@@ -7,6 +7,8 @@ import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.transfer.BpmTaskTran
 import cn.iocoder.yudao.module.bpm.dal.dataobject.task.BpmTaskTransferConfigDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.List;
+
 @Mapper
 public interface BpmTaskTransferConfigMapper extends BaseMapperX<BpmTaskTransferConfigDO> {
 
@@ -28,6 +30,11 @@ public interface BpmTaskTransferConfigMapper extends BaseMapperX<BpmTaskTransfer
                 .le(BpmTaskTransferConfigDO::getStartTime, now)
                 .ge(BpmTaskTransferConfigDO::getEndTime, now)
                 .ne(BpmTaskTransferConfigDO::getStatus, cn.iocoder.yudao.module.bpm.enums.transfer.BpmTaskTransferStatusEnum.CANCELED.getStatus())
+                .orderByDesc(BpmTaskTransferConfigDO::getId));
+    }
+    default List<BpmTaskTransferConfigDO> selectListByModelVersion(Integer modelVersion) {
+        return selectList(new LambdaQueryWrapperX<BpmTaskTransferConfigDO>()
+                .eqIfPresent(BpmTaskTransferConfigDO::getModelVersion, modelVersion)
                 .orderByDesc(BpmTaskTransferConfigDO::getId));
     }
 }

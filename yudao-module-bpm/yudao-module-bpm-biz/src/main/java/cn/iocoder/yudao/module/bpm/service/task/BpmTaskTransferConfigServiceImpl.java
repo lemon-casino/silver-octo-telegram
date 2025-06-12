@@ -33,6 +33,8 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
         validateExists(updateReqVO.getId());
         BpmTaskTransferConfigDO updateObj = BeanUtils.toBean(updateReqVO, BpmTaskTransferConfigDO.class);
         updateObj.setStatus(calculateStatus(updateReqVO.getStartTime(), updateReqVO.getEndTime()));
+        System.out.println("----------------》》》》"+updateReqVO.getModelVersion()+(updateReqVO.getModelVersion() == null));
+        transferConfigMapper.selectListByModelVersion(updateReqVO.getModelVersion());
         transferConfigMapper.updateById(updateObj);
     }
 
