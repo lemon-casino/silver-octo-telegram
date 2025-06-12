@@ -1665,9 +1665,14 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                     return;
                 }
 
+                ProcessDefinition definition = bpmProcessDefinitionService.getProcessDefinition(task.getProcessDefinitionId());
+                BpmProcessDefinitionInfoDO processDefinitionInfo = bpmProcessDefinitionService.getProcessDefinitionInfo(task.getProcessDefinitionId());
+                String modelId = processDefinitionInfo != null ? processDefinitionInfo.getModelId() : null;
+                Integer version = definition != null ? definition.getVersion() : null;
+
                 // 根据转办配置自动调整审批人
                 BpmTaskTransferConfigDO transferConfig = taskTransferConfigService.getActiveTaskTransferConfig(
-                        Long.valueOf(task.getAssignee()), task.getProcessDefinitionId());
+                        Long.valueOf(task.getAssignee()), modelId, version);
                 if (transferConfig != null && ObjectUtil.notEqual(transferConfig.getToUserId(), transferConfig.getFromUserId())) {
                     getSelf().transferTask(transferConfig.getFromUserId(), new BpmTaskTransferReqVO()
                             .setId(task.getId())
@@ -1678,7 +1683,6 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                 }
 
                 // 自动去重，通过自动审批的方式 TODO @芋艿 驳回的情况得考虑一下；@lesan：驳回后，又自动审批么？
-                BpmProcessDefinitionInfoDO processDefinitionInfo = bpmProcessDefinitionService.getProcessDefinitionInfo(task.getProcessDefinitionId());
                 if (processDefinitionInfo == null) {
                     log.error("[processTaskAssigned][taskId({}) 没有找到流程定义({})]", task.getId(), task.getProcessDefinitionId());
                     return;

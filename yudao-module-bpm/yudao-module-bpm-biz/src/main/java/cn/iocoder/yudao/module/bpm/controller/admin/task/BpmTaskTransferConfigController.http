@@ -7,7 +7,8 @@ Authorization: Bearer {{token}}
 {
   "fromUserId": 1,
   "toUserId": 2,
-  "processDefinitionId": "test:1:abcd1234",
+  "modelId": "test",
+  "modelVersion": 1,
   "startTime": 1735689600000,
   "endTime": 1767225599000,
   "reason": "自动转办"
@@ -23,7 +24,8 @@ Authorization: Bearer {{token}}
   "id": 1,
   "fromUserId": 1,
   "toUserId": 3,
-  "processDefinitionId": "test:1:abcd1234",
+  "modelId": "test",
+  "modelVersion": 1,
   "startTime": 1735689600000,
   "endTime": 1767225599000,
   "reason": "改为他人处理"
