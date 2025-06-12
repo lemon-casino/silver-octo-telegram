@@ -33,9 +33,16 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
         validateExists(updateReqVO.getId());
         BpmTaskTransferConfigDO updateObj = BeanUtils.toBean(updateReqVO, BpmTaskTransferConfigDO.class);
         updateObj.setStatus(calculateStatus(updateReqVO.getStartTime(), updateReqVO.getEndTime()));
-        System.out.println("----------------》》》》"+updateReqVO.getModelVersion()+(updateReqVO.getModelVersion() == null));
-        transferConfigMapper.selectListByModelVersion(updateReqVO.getModelVersion());
-        transferConfigMapper.updateById(updateObj);
+        // 如果 modelId 和 modelVersion 不传，则设置为空
+        if (updateReqVO.getModelId() == null || updateReqVO.getModelId().isEmpty()) {
+            updateObj.setModelId(null);
+        }
+
+        if (updateReqVO.getModelVersion() == null) {
+            updateObj.setModelVersion(null);
+        }
+        System.out.println("====》????????"+updateObj);
+        transferConfigMapper.updateByIdWithNull(updateObj);
     }
 
     @Override
@@ -96,16 +103,19 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
     public BpmTaskTransferConfigDO getActiveTaskTransferConfig(Long fromUserId, String modelId, Integer modelVersion) {
         Long now = System.currentTimeMillis();
         // 1. 先尝试按模型和版本精确匹配
-        java.util.List<BpmTaskTransferConfigDO> list = transferConfigMapper.selectListByUser(fromUserId, modelId, modelVersion, now);
+        BpmTaskTransferConfigDO bpmTask = transferConfigMapper.selectFirstByUser(fromUserId, modelId, modelVersion, now);
+
         // 2. 如果未匹配到，则仅按照模型匹配，忽略版本号
-        if (list.isEmpty() && cn.hutool.core.util.StrUtil.isNotBlank(modelId)) {
-            list = transferConfigMapper.selectListByUser(fromUserId, modelId, null, now);
+        if (bpmTask == null && cn.hutool.core.util.StrUtil.isNotBlank(modelId)) {
+            bpmTask = transferConfigMapper.selectFirstByUser(fromUserId, modelId, null, now);
         }
+
         // 3. 仍未匹配到，则查找适用于所有模型的配置
-        if (list.isEmpty()) {
-            list = transferConfigMapper.selectListByUser(fromUserId, null, null, now);
+        if (bpmTask == null) {
+            bpmTask = transferConfigMapper.selectFirstByUser(fromUserId, null, null, now);
         }
-        return list.isEmpty() ? null : list.getFirst();
+
+        return bpmTask;
     }
 
     @Override

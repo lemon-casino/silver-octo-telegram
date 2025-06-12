@@ -27,10 +27,10 @@ public class BpmTaskTransferConfigDO extends BaseDO {
     /** 新审批人 */
     private Long toUserId;
     /** 适用的流程模型编号，为空时表示全部流程 */
-    private String modelId;
+    private String modelId=null;
 
     /** 适用的流程版本号 */
-    private Integer modelVersion;
+    private Integer modelVersion=null;
     /** 开始时间，时间戳 */
     private Long startTime;
     /** 结束时间，时间戳 */

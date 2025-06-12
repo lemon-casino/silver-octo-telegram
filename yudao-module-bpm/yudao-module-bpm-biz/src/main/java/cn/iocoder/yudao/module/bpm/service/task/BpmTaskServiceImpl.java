@@ -1638,19 +1638,28 @@ public class BpmTaskServiceImpl implements BpmTaskService {
             Integer version = definition != null ? definition.getVersion() : null;
                     System.out.println("modelId--->"+modelId);
                     System.out.println("version--->"+version);
+
             // 根据转办配置自动调整审批人
             BpmTaskTransferConfigDO transferConfig = taskTransferConfigService.getActiveTaskTransferConfig(
                     Long.valueOf(t.getAssignee()), modelId, version);
                     System.out.println(transferConfig);
-            if (transferConfig != null && ObjectUtil.notEqual(transferConfig.getToUserId(), transferConfig.getFromUserId()) && ObjectUtil.equal(t.getAssignee(),transferConfig.getFromUserId())) {
-                getSelf().transferTask(transferConfig.getFromUserId(), new BpmTaskTransferReqVO()
-                        .setId(t.getId())
-                        .setAssigneeUserId(transferConfig.getToUserId())
-                        .setReason(transferConfig.getReason())
-                        .setManagerial(true));
-                return;
-            }
-
+                    System.out.println();
+                    System.out.println("t.getAssignee()--->"+t.getAssignee());
+                    if (transferConfig != null) {
+                        System.out.println("getFromUserId()--->"+ transferConfig.getFromUserId());
+                        System.out.println();
+                        System.out.println("------()--->"+ ObjectUtil.notEqual(transferConfig.getToUserId(), transferConfig.getFromUserId()) );
+                        System.out.println("------()--->"+Long.valueOf(t.getAssignee()).equals(transferConfig.getFromUserId()));
+                        if(ObjectUtil.notEqual(transferConfig.getToUserId(), transferConfig.getFromUserId()) && Long.valueOf(t.getAssignee()).equals(transferConfig.getFromUserId())){
+                            System.out.println("我来到这里");
+                            getSelf().transferTask(transferConfig.getFromUserId(), new BpmTaskTransferReqVO()
+                                    .setId(t.getId())
+                                    .setAssigneeUserId(transferConfig.getToUserId())
+                                    .setReason(transferConfig.getReason())
+                                    .setManagerial(true));
+                            return;
+                        }
+                    }
             // 自动去重，通过自动审批的方式 TODO @芋艿 驳回的情况得考虑一下；@lesan：驳回后，又自动审批么？
             if (processDefinitionInfo == null) {
                 log.error("[processTaskAssigned][taskId({}) 没有找到流程定义({})]", t.getId(), t.getProcessDefinitionId());
