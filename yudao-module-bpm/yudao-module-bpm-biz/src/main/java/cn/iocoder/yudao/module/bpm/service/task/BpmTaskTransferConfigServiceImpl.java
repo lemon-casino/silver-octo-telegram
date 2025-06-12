@@ -95,7 +95,13 @@ public class BpmTaskTransferConfigServiceImpl implements BpmTaskTransferConfigSe
     @Override
     public BpmTaskTransferConfigDO getActiveTaskTransferConfig(Long fromUserId, String modelId, Integer modelVersion) {
         Long now = System.currentTimeMillis();
+        // 1. 先尝试按模型和版本精确匹配
         java.util.List<BpmTaskTransferConfigDO> list = transferConfigMapper.selectListByUser(fromUserId, modelId, modelVersion, now);
+        // 2. 如果未匹配到，则仅按照模型匹配，忽略版本号
+        if (list.isEmpty() && cn.hutool.core.util.StrUtil.isNotBlank(modelId)) {
+            list = transferConfigMapper.selectListByUser(fromUserId, modelId, null, now);
+        }
+        // 3. 仍未匹配到，则查找适用于所有模型的配置
         if (list.isEmpty()) {
             list = transferConfigMapper.selectListByUser(fromUserId, null, null, now);
         }

@@ -1636,11 +1636,13 @@ public class BpmTaskServiceImpl implements BpmTaskService {
             BpmProcessDefinitionInfoDO processDefinitionInfo = bpmProcessDefinitionService.getProcessDefinitionInfo(t.getProcessDefinitionId());
             String modelId = processDefinitionInfo != null ? processDefinitionInfo.getModelId() : null;
             Integer version = definition != null ? definition.getVersion() : null;
-
+                    System.out.println("modelId--->"+modelId);
+                    System.out.println("version--->"+version);
             // 根据转办配置自动调整审批人
             BpmTaskTransferConfigDO transferConfig = taskTransferConfigService.getActiveTaskTransferConfig(
                     Long.valueOf(t.getAssignee()), modelId, version);
-            if (transferConfig != null && ObjectUtil.notEqual(transferConfig.getToUserId(), transferConfig.getFromUserId())) {
+                    System.out.println(transferConfig);
+            if (transferConfig != null && ObjectUtil.notEqual(transferConfig.getToUserId(), transferConfig.getFromUserId()) && ObjectUtil.equal(t.getAssignee(),transferConfig.getFromUserId())) {
                 getSelf().transferTask(transferConfig.getFromUserId(), new BpmTaskTransferReqVO()
                         .setId(t.getId())
                         .setAssigneeUserId(transferConfig.getToUserId())
