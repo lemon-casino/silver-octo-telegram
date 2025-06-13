@@ -25,10 +25,7 @@ import org.flowable.engine.impl.util.CommandContextUtil;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.task.api.TaskInfo;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
@@ -415,4 +412,34 @@ public class FlowableUtils {
         return getExpressionValue(variableContainer, expressionString);
     }
 
+    /**
+     * 获得流程实例的所有摘要字段
+     *
+     * 仅有 {@link BpmModelFormTypeEnum#NORMAL} 表单，才有摘要。
+     * 返回所有表单字段对应的摘要内容
+     *
+     * @param processDefinitionInfo 流程定义
+     * @param processVariables      流程实例的 variables
+     * @return 全部摘要字段
+     */
+    public static List<KeyValue<String, String>> getSummaryAll(BpmProcessDefinitionInfoDO processDefinitionInfo,
+                                                               Map<String, Object> processVariables) {
+        if (ObjectUtil.isNull(processDefinitionInfo)
+                || !BpmModelFormTypeEnum.NORMAL.getType().equals(processDefinitionInfo.getFormType())) {
+            return null;
+        }
+
+        Map<String, BpmFormFieldVO> formFieldsMap = new LinkedHashMap<>();
+        processDefinitionInfo.getFormFields().forEach(formFieldStr -> {
+            BpmFormFieldVO formField = JsonUtils.parseObject(formFieldStr, BpmFormFieldVO.class);
+            if (formField != null) {
+                formFieldsMap.put(formField.getField(), formField);
+            }
+        });
+
+        return formFieldsMap.values().stream()
+                .map(bpmFormFieldVO -> new KeyValue<>(bpmFormFieldVO.getTitle(),
+                        processVariables.getOrDefault(bpmFormFieldVO.getField(), "").toString()))
+                .collect(Collectors.toList());
+    }
 }

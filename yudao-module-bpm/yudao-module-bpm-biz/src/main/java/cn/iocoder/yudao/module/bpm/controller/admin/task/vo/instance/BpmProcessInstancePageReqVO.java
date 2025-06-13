@@ -27,6 +27,8 @@ public class BpmProcessInstancePageReqVO extends PageParam {
 
     @Schema(description = "流程分类", example = "1")
     private String category;
+    @Schema(description = "流程模型编号", example = "model_1024")
+    private String modelId;
 
     @Schema(description = "创建时间")
     @DateTimeFormat(pattern = FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND)

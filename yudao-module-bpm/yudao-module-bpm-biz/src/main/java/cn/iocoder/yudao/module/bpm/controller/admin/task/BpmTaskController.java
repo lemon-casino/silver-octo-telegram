@@ -129,7 +129,18 @@ public class BpmTaskController {
                 convertSet(userMap.values(), AdminUserRespDTO::getDeptId));
         Map<String, BpmProcessDefinitionInfoDO> processDefinitionInfoMap = processDefinitionService.getProcessDefinitionInfoMap(
                 convertSet(pageResult.getList(), HistoricTaskInstance::getProcessDefinitionId));
-        return success(BpmTaskConvert.INSTANCE.buildTaskPage(pageResult, processInstanceMap, userMap, deptMap, processDefinitionInfoMap));
+        PageResult<BpmTaskRespVO> respPage = BpmTaskConvert.INSTANCE.buildTaskPage(pageResult, processInstanceMap, userMap, deptMap, processDefinitionInfoMap);
+        respPage.getList().forEach(taskVO -> {
+            BpmTaskRespVO.ProcessInstance pi = taskVO.getProcessInstance();
+            if (pi == null) {
+                return;
+            }
+            HistoricProcessInstance hpi = processInstanceMap.get(taskVO.getProcessInstanceId());
+            if (hpi != null) {
+                pi.setSummary(FlowableUtils.getSummaryAll(processDefinitionInfoMap.get(pi.getProcessDefinitionId()), hpi.getProcessVariables()));
+            }
+        });
+        return success(respPage);
     }
 
     @GetMapping("/list-by-process-instance-id")

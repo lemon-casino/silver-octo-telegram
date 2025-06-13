@@ -18,6 +18,7 @@ import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.instance.BpmApproval
 import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.task.BpmTaskRespVO;
 import cn.iocoder.yudao.module.bpm.convert.task.BpmProcessInstanceConvert;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmProcessDefinitionInfoDO;
+import cn.iocoder.yudao.module.bpm.dal.mysql.definition.BpmProcessDefinitionInfoMapper;
 import cn.iocoder.yudao.module.bpm.dal.redis.BpmProcessIdRedisDAO;
 import cn.iocoder.yudao.module.bpm.enums.ErrorCodeConstants;
 import cn.iocoder.yudao.module.bpm.enums.definition.BpmModelTypeEnum;
@@ -118,6 +119,8 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
 
     @Resource
     private BpmProcessIdRedisDAO processIdRedisDAO;
+    @Resource
+    private BpmProcessDefinitionInfoMapper processDefinitionInfoMapper;
 
     // ========== Query 查询相关方法 ==========
 
@@ -161,6 +164,25 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
         if (StrUtil.isNotEmpty(pageReqVO.getProcessDefinitionKey())) {
             processInstanceQuery.processDefinitionKey(pageReqVO.getProcessDefinitionKey());
         }
+
+        if (StrUtil.isNotEmpty(pageReqVO.getModelId())) {
+            List<BpmProcessDefinitionInfoDO> infos = processDefinitionInfoMapper.selectListByModelId(pageReqVO.getModelId());
+            Set<String> processDefinitionIds = convertSet(infos, BpmProcessDefinitionInfoDO::getProcessDefinitionId);
+            if (CollUtil.isEmpty(processDefinitionIds)) {
+                return PageResult.empty(0L);
+            }
+            // HistoricProcessInstanceQuery does not support filtering by a collection of
+            // processDefinitionIds directly. Build an OR block to match any id.
+            if (processDefinitionIds.size() == 1) {
+                processInstanceQuery.processDefinitionId(processDefinitionIds.iterator().next());
+            } else {
+                processInstanceQuery.or();
+                processDefinitionIds.forEach(processInstanceQuery::processDefinitionId);
+                processInstanceQuery.endOr();
+            }
+        }
+
+
         if (StrUtil.isNotEmpty(pageReqVO.getCategory())) {
             processInstanceQuery.processDefinitionCategory(pageReqVO.getCategory());
         }
@@ -290,6 +312,22 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
         if (StrUtil.isNotEmpty(pageReqVO.getProcessDefinitionKey())) {
             processInstanceQuery.processDefinitionKey(pageReqVO.getProcessDefinitionKey());
         }
+
+        if (StrUtil.isNotEmpty(pageReqVO.getModelId())) {
+            List<BpmProcessDefinitionInfoDO> infos = processDefinitionInfoMapper.selectListByModelId(pageReqVO.getModelId());
+            Set<String> processDefinitionIds = convertSet(infos, BpmProcessDefinitionInfoDO::getProcessDefinitionId);
+            if (CollUtil.isEmpty(processDefinitionIds)) {
+                return PageResult.empty(0L);
+            }
+            if (processDefinitionIds.size() == 1) {
+                processInstanceQuery.processDefinitionId(processDefinitionIds.iterator().next());
+            } else {
+                processInstanceQuery.or();
+                processDefinitionIds.forEach(processInstanceQuery::processDefinitionId);
+                processInstanceQuery.endOr();
+            }
+        }
+
         if (StrUtil.isNotEmpty(pageReqVO.getCategory())) {
             processInstanceQuery.processDefinitionCategory(pageReqVO.getCategory());
         }
