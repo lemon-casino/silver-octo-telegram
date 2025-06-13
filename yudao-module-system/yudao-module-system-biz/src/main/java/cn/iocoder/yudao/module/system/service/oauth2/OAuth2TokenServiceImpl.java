@@ -65,7 +65,14 @@ public class OAuth2TokenServiceImpl implements OAuth2TokenService {
     @Transactional(rollbackFor = Exception.class)
     public OAuth2AccessTokenDO createAccessToken(Long userId, Integer userType, String clientId, List<String> scopes) {
         OAuth2ClientDO clientDO = oauth2ClientService.validOAuthClientFromCache(clientId);
-        
+        // 【新增】对admin账号特殊处理，允许多地登录
+        System.out.println("--->>>>>>>>>>>"+userType);
+        if (UserTypeEnum.ADMIN.getValue().equals(userType)) {
+            // admin账号直接创建新令牌，不检查现有令牌
+            log.info("[createAccessToken] Admin账号登录，创建新令牌，userId: {}", userId);
+            OAuth2RefreshTokenDO refreshTokenDO = createOAuth2RefreshToken(userId, userType, clientDO, scopes);
+            return createOAuth2AccessToken(refreshTokenDO, clientDO);
+        }
         // 检查是否有未过期的访问令牌
         OAuth2AccessTokenDO accessTokenDO = getAccessTokenByUserIdAndUserType(userId, userType);
         if (accessTokenDO != null) {
