@@ -47,6 +47,7 @@ import org.springframework.validation.annotation.Validated;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
@@ -497,11 +498,26 @@ public class BpmModelServiceImpl implements BpmModelService {
         if (CollUtil.isEmpty(models)) {
             return new ArrayList<>();
         }
+        // 批量查询流程定义拓展信息，避免 N + 1 查询
+        Set<String> modelIds = models.stream().map(Model::getId).collect(Collectors.toSet());
+        List<BpmProcessDefinitionInfoDO> allInfos = processDefinitionInfoMapper.selectListByModelIds(modelIds);
+        Map<String, List<BpmProcessDefinitionInfoDO>> infoMap = allInfos.stream()
+                .collect(Collectors.groupingBy(BpmProcessDefinitionInfoDO::getModelId));
+
+        // 批量查询 ProcessDefinition，提高查询效率
+        Set<String> processDefinitionIds = allInfos.stream()
+                .map(BpmProcessDefinitionInfoDO::getProcessDefinitionId)
+                .collect(Collectors.toSet());
+        Map<String, ProcessDefinition> definitionMap = processDefinitionService.getProcessDefinitionMap(processDefinitionIds);
+
         List<BpmModelVersionRespVO> result = new ArrayList<>(models.size());
         for (Model model : models) {
-            List<BpmProcessDefinitionInfoDO> infos = processDefinitionInfoMapper.selectListByModelId(model.getId());
+            List<BpmProcessDefinitionInfoDO> infos = infoMap.get(model.getId());
+            if (CollUtil.isEmpty(infos)) {
+                continue;
+            }
             List<Integer> versions = infos.stream()
-                    .map(info -> processDefinitionService.getProcessDefinition(info.getProcessDefinitionId()))
+                    .map(info -> definitionMap.get(info.getProcessDefinitionId()))
                     .filter(Objects::nonNull)
                     .map(ProcessDefinition::getVersion)
                     .distinct()
