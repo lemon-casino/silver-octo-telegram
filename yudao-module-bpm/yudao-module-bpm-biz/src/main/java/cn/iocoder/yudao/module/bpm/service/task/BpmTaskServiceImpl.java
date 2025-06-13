@@ -10,6 +10,7 @@ import cn.iocoder.yudao.framework.common.util.date.LocalDateTimeUtils;
 import cn.iocoder.yudao.framework.common.util.number.NumberUtils;
 import cn.iocoder.yudao.framework.common.util.object.ObjectUtils;
 import cn.iocoder.yudao.framework.common.util.object.PageUtils;
+import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.framework.web.core.util.WebFrameworkUtils;
 import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.task.*;
 import cn.iocoder.yudao.module.bpm.convert.task.BpmTaskConvert;
@@ -281,6 +282,16 @@ public class BpmTaskServiceImpl implements BpmTaskService {
             LocalDateTime endTime = LocalDateTimeUtils.parse(pageVO.getCreateTime()[1]);
             query.taskCreatedAfter(DateUtils.of(startTime));
             query.taskCreatedBefore(DateUtils.of(endTime));
+        }
+        // 表单字段模糊查询
+        Map<String, Object> formFieldsParams = JsonUtils.parseObject(pageVO.getFormFieldsParams(), Map.class);
+        if (CollUtil.isNotEmpty(formFieldsParams)) {
+            formFieldsParams.forEach((key, value) -> {
+                if (StrUtil.isEmpty(String.valueOf(value))) {
+                    return;
+                }
+                query.processVariableValueLikeIgnoreCase(key, "%" + value + "%");
+            });
         }
         return query;
     }

@@ -4,6 +4,7 @@ import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModel
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.BpmSimpleModelNodeVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.BpmSimpleModelUpdateReqVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionRespVO;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionFormRespVO;
 import jakarta.validation.Valid;
 import org.flowable.bpmn.model.BpmnModel;
 import org.flowable.engine.repository.Model;
@@ -147,5 +148,12 @@ public interface BpmModelService {
      * @return 模型版本信息列表
      */
     List<BpmModelVersionRespVO> getModelVersionList();
+
+    /**
+     * 获取所有流程模型及其版本对应的表单项列表
+     *
+     * @return 模型版本及表单项信息列表
+     */
+    List<BpmModelVersionFormRespVO> getModelVersionFormList();
 
 }
