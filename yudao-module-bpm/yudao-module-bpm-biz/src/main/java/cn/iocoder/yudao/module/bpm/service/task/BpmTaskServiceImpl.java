@@ -66,7 +66,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-
+import cn.iocoder.yudao.module.bpm.service.task.cmd.DeleteTaskCmd;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -1466,14 +1466,15 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         String cancelReason = StrUtil.format("任务被取消，原因：{}", reqVO.getReason());
         childTaskList.forEach(t -> updateTaskStatusAndReason(t.getId(), BpmTaskStatusEnum.CANCEL.getStatus(), cancelReason));
 
-        // 2.2 删除任务以及所有子任务
-        taskService.deleteTasks(convertList(childTaskList, Task::getId));
-
-        // 3. 添加取消意见
+        // 2.2 添加取消意见
         taskService.addComment(task.getId(), task.getProcessInstanceId(),
                 BpmCommentTypeEnum.CANCEL.getType(), BpmCommentTypeEnum.CANCEL.formatComment(reqVO.getReason()));
 
-        // 4. 处理父任务
+        // 2.3 删除任务以及所有子任务
+        childTaskList.forEach(t -> managementService.executeCommand(
+                new DeleteTaskCmd(t.getExecutionId(), cancelReason)));
+
+        // 3. 处理父任务
         handleParentTaskIfSign(task.getParentTaskId());
     }
 
