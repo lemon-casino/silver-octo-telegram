@@ -1453,6 +1453,31 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cancelTask(Long userId, BpmTaskCancelReqVO reqVO) {
+        // 1. 校验任务存在
+        Task task = validateTask(userId, reqVO.getId(), reqVO.getManagerial());
+
+        // 2. 获取所有子任务，包括子任务的子任务
+        List<Task> childTaskList = getAllChildTaskList(task);
+        childTaskList.add(task);
+
+        // 2.1 更新子任务状态和原因
+        String cancelReason = StrUtil.format("任务被取消，原因：{}", reqVO.getReason());
+        childTaskList.forEach(t -> updateTaskStatusAndReason(t.getId(), BpmTaskStatusEnum.CANCEL.getStatus(), cancelReason));
+
+        // 2.2 删除任务以及所有子任务
+        taskService.deleteTasks(convertList(childTaskList, Task::getId));
+
+        // 3. 添加取消意见
+        taskService.addComment(task.getId(), task.getProcessInstanceId(),
+                BpmCommentTypeEnum.CANCEL.getType(), BpmCommentTypeEnum.CANCEL.formatComment(reqVO.getReason()));
+
+        // 4. 处理父任务
+        handleParentTaskIfSign(task.getParentTaskId());
+    }
+
+    @Override
     public void copyTask(Long userId, BpmTaskCopyReqVO reqVO) {
         Set<Long> userIds = new HashSet<>(reqVO.getCopyUserIds());
         if (Boolean.TRUE.equals(reqVO.getCopySelf())) {

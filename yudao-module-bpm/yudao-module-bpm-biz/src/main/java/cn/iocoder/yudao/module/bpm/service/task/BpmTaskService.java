@@ -239,6 +239,14 @@ public interface BpmTaskService {
     void deleteSignTask(Long userId, BpmTaskSignDeleteReqVO reqVO);
 
     /**
+     * 取消任务
+     *
+     * @param userId 用户编号
+     * @param reqVO  取消任务的请求
+     */
+    void cancelTask(Long userId, BpmTaskCancelReqVO reqVO);
+
+    /**
      * 抄送任务
      *
      * @param userId 用户编号

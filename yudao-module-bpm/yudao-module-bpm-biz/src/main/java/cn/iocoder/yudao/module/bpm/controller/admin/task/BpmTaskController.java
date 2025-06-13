@@ -405,6 +405,14 @@ public class BpmTaskController {
         return success(true);
     }
 
+    @DeleteMapping("/cancel")
+    @Operation(summary = "取消任务")
+    @PreAuthorize("@ss.hasPermission('bpm:task:update')")
+    public CommonResult<Boolean> cancelTask(@Valid @RequestBody BpmTaskCancelReqVO reqVO) {
+        bpmTaskService.cancelTask(getLoginUserId(), reqVO);
+        return success(true);
+    }
+
     @PutMapping("/copy")
     @Operation(summary = "抄送任务")
     @PreAuthorize("@ss.hasPermission('bpm:task:update')")
