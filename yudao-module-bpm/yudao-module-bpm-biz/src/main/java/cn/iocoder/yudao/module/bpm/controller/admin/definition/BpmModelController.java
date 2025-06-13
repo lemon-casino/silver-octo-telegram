@@ -201,6 +201,12 @@ public class BpmModelController {
         return success(modelService.getModelVersionList());
     }
 
+    @GetMapping("/version-form-list")
+    @Operation(summary = "获得流程模型版本表单项列表")
+    public CommonResult<List<BpmModelVersionFormRespVO>> getModelVersionFormList() {
+        return success(modelService.getModelVersionFormList());
+    }
+
     @Deprecated
     @PostMapping("/simple/update")
     @Operation(summary = "保存仿钉钉流程设计模型")

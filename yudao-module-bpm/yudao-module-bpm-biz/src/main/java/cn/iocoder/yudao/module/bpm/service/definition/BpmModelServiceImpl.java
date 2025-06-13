@@ -22,6 +22,7 @@ import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.SimpleModelUtils;
 import cn.iocoder.yudao.module.bpm.service.task.BpmProcessInstanceCopyService;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionRespVO;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionFormRespVO;
 import cn.iocoder.yudao.module.bpm.dal.mysql.definition.BpmProcessDefinitionInfoMapper;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
@@ -48,6 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
@@ -508,6 +511,42 @@ public class BpmModelServiceImpl implements BpmModelService {
                     .sorted()
                     .collect(Collectors.toList());
             BpmModelVersionRespVO vo = new BpmModelVersionRespVO();
+            vo.setId(model.getId());
+            vo.setName(model.getName());
+            vo.setVersions(versions);
+            result.add(vo);
+        }
+        return result;
+    }
+
+    @Override
+    public List<BpmModelVersionFormRespVO> getModelVersionFormList() {
+        List<Model> models = getModelList(null);
+        if (CollUtil.isEmpty(models)) {
+            return new ArrayList<>();
+        }
+        List<BpmModelVersionFormRespVO> result = new ArrayList<>(models.size());
+        for (Model model : models) {
+            List<BpmProcessDefinitionInfoDO> infos = processDefinitionInfoMapper.selectListByModelId(model.getId());
+            Map<Integer, List<String>> versionMap = new HashMap<>();
+            for (BpmProcessDefinitionInfoDO info : infos) {
+                ProcessDefinition definition = processDefinitionService.getProcessDefinition(info.getProcessDefinitionId());
+                if (definition == null) {
+                    continue;
+                }
+                versionMap.put(definition.getVersion(), info.getFormFields());
+            }
+            List<BpmModelVersionFormRespVO.VersionInfo> versions = versionMap.entrySet().stream()
+                    .map(entry -> {
+                        BpmModelVersionFormRespVO.VersionInfo v = new BpmModelVersionFormRespVO.VersionInfo();
+                        v.setVersion(entry.getKey());
+                        v.setFormFields(entry.getValue());
+                        return v;
+                    })
+                    .sorted(Comparator.comparing(BpmModelVersionFormRespVO.VersionInfo::getVersion))
+                    .collect(Collectors.toList());
+
+            BpmModelVersionFormRespVO vo = new BpmModelVersionFormRespVO();
             vo.setId(model.getId());
             vo.setName(model.getName());
             vo.setVersions(versions);

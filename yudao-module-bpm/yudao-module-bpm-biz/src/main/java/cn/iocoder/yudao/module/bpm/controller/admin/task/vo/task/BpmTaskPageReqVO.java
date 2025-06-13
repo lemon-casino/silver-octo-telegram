@@ -21,5 +21,8 @@ public class BpmTaskPageReqVO extends PageParam {
     //流程实例名称
     private String processInstanceName;
 
+    @Schema(description = "动态表单字段查询 JSON Str", example = "{}")
+    private String formFieldsParams; // 以 JSON 字符串的形式传递表单字段查询参数
+
 
 }
