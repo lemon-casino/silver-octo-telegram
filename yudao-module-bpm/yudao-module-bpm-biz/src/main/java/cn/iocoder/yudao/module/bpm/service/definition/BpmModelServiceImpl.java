@@ -8,11 +8,13 @@ import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.framework.common.util.validation.ValidationUtils;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelMetaInfoVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelSaveReqVO;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionRespVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.BpmSimpleModelNodeVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.BpmSimpleModelUpdateReqVO;
 import cn.iocoder.yudao.module.bpm.convert.definition.BpmModelConvert;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmFormDO;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmProcessDefinitionInfoDO;
+import cn.iocoder.yudao.module.bpm.dal.mysql.definition.BpmProcessDefinitionInfoMapper;
 import cn.iocoder.yudao.module.bpm.enums.definition.BpmModelFormTypeEnum;
 import cn.iocoder.yudao.module.bpm.enums.definition.BpmModelTypeEnum;
 import cn.iocoder.yudao.module.bpm.enums.task.BpmReasonEnum;
@@ -21,8 +23,6 @@ import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.BpmnModelUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.SimpleModelUtils;
 import cn.iocoder.yudao.module.bpm.service.task.BpmProcessInstanceCopyService;
-import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionRespVO;
-import cn.iocoder.yudao.module.bpm.dal.mysql.definition.BpmProcessDefinitionInfoMapper;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -44,10 +44,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
@@ -497,11 +494,26 @@ public class BpmModelServiceImpl implements BpmModelService {
         if (CollUtil.isEmpty(models)) {
             return new ArrayList<>();
         }
+        // 批量查询流程定义拓展信息，避免 N + 1 查询
+        Set<String> modelIds = models.stream().map(Model::getId).collect(Collectors.toSet());
+        List<BpmProcessDefinitionInfoDO> allInfos = processDefinitionInfoMapper.selectListByModelIds(modelIds);
+        Map<String, List<BpmProcessDefinitionInfoDO>> infoMap = allInfos.stream()
+                .collect(Collectors.groupingBy(BpmProcessDefinitionInfoDO::getModelId));
+
+        // 批量查询 ProcessDefinition，提高查询效率
+        Set<String> processDefinitionIds = allInfos.stream()
+                .map(BpmProcessDefinitionInfoDO::getProcessDefinitionId)
+                .collect(Collectors.toSet());
+        Map<String, ProcessDefinition> definitionMap = processDefinitionService.getProcessDefinitionMap(processDefinitionIds);
+
         List<BpmModelVersionRespVO> result = new ArrayList<>(models.size());
         for (Model model : models) {
-            List<BpmProcessDefinitionInfoDO> infos = processDefinitionInfoMapper.selectListByModelId(model.getId());
+            List<BpmProcessDefinitionInfoDO> infos = infoMap.get(model.getId());
+            if (CollUtil.isEmpty(infos)) {
+                continue;
+            }
             List<Integer> versions = infos.stream()
-                    .map(info -> processDefinitionService.getProcessDefinition(info.getProcessDefinitionId()))
+                    .map(info -> definitionMap.get(info.getProcessDefinitionId()))
                     .filter(Objects::nonNull)
                     .map(ProcessDefinition::getVersion)
                     .distinct()
