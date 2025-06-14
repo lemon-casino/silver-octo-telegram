@@ -86,10 +86,10 @@ public class BpmProcessInstanceCopyController {
                     .map(Long::parseLong)
                     .orElse(null);
 
-            MapUtils.findAndThen(userMap, creatorId,
+            MapUtils.findAndThen(userMap, copy.getStartUserId(),
                     user -> copyVO.setStartUser(BeanUtils.toBean(user, UserSimpleBaseVO.class)));
 
-            MapUtils.findAndThen(userMap, copy.getStartUserId(),
+            MapUtils.findAndThen(userMap,  creatorId,
                     user -> copyVO.setCreateUser(BeanUtils.toBean(user, UserSimpleBaseVO.class)));
 
             MapUtils.findAndThen(processInstanceMap, copyVO.getProcessInstanceId(),
