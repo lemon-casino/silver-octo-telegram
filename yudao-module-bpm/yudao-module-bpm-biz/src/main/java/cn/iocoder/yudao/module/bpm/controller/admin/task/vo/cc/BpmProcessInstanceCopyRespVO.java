@@ -36,7 +36,7 @@ public class BpmProcessInstanceCopyRespVO {
     @Schema(description = "抄送人意见")
     private String reason;
 
-    @Schema(description = "创建人", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "抄送创建人", requiredMode = Schema.RequiredMode.REQUIRED)
     private UserSimpleBaseVO createUser;
 
     @Schema(description = "抄送时间", requiredMode = Schema.RequiredMode.REQUIRED)
