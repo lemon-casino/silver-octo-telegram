@@ -98,6 +98,7 @@ public class BpmProcessInstanceCopyController {
                                 processDefinitionInfoMap.get(processInstance.getProcessDefinitionId()),
                                 processInstance.getProcessVariables()));
                         copyVO.setProcessInstanceStartTime(DateUtils.of(processInstance.getStartTime()));
+                        copyVO.setStatus(FlowableUtils.getProcessInstanceStatus(processInstance));
                     });
 
             return copyVO;

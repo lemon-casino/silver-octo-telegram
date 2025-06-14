@@ -41,7 +41,8 @@ public class BpmProcessInstanceCopyRespVO {
 
     @Schema(description = "抄送时间", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDateTime createTime;
-
+    @Schema(description = "流程实例的状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
+    private Integer status;
     @Schema(description = "流程摘要", example = "[]")
     private List<KeyValue<String, String>> summary;
 
