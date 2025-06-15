@@ -11,6 +11,7 @@ import cn.iocoder.yudao.framework.common.util.number.NumberUtils;
 import cn.iocoder.yudao.framework.common.util.object.ObjectUtils;
 import cn.iocoder.yudao.framework.common.util.object.PageUtils;
 import cn.iocoder.yudao.framework.web.core.util.WebFrameworkUtils;
+import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.comment.BpmProcessInstanceCommentCreateReqVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.task.vo.task.*;
 import cn.iocoder.yudao.module.bpm.convert.task.BpmTaskConvert;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmFormDO;
@@ -32,6 +33,7 @@ import cn.iocoder.yudao.module.bpm.service.definition.BpmProcessDefinitionServic
 import cn.iocoder.yudao.module.bpm.service.message.BpmMessageService;
 import cn.iocoder.yudao.module.bpm.service.message.dto.BpmMessageSendWhenTaskTimeoutReqDTO;
 import cn.iocoder.yudao.module.bpm.service.task.cmd.BackTaskCmd;
+import cn.iocoder.yudao.module.bpm.service.task.cmd.DeleteTaskCmd;
 import cn.iocoder.yudao.module.bpm.service.task.dto.BpmMultiInstanceMessageDTO;
 import cn.iocoder.yudao.module.bpm.service.worktime.BpmWorkTimeService;
 import cn.iocoder.yudao.module.system.api.dept.DeptApi;
@@ -66,7 +68,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import cn.iocoder.yudao.module.bpm.service.task.cmd.DeleteTaskCmd;
+
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -120,7 +122,8 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     private BpmWorkTimeService workTimeService;
     @Resource
     private BpmTaskTransferConfigService taskTransferConfigService;
-
+    @Resource
+    private BpmProcessInstanceCommentService commentService;
     /**
      * 任务执行器，用于在事务提交后异步处理自动审批等逻辑，避免与流程引擎的事务冲突
      */
@@ -1223,9 +1226,14 @@ public class BpmTaskServiceImpl implements BpmTaskService {
 
         // 2. 添加委托意见
         AdminUserRespDTO currentUser = adminUserApi.getUser(userId);
-        taskService.addComment(taskId, task.getProcessInstanceId(), BpmCommentTypeEnum.DELEGATE_START.getType(),
-                BpmCommentTypeEnum.DELEGATE_START.formatComment(currentUser.getNickname(), delegateUser.getNickname(), reqVO.getReason()));
-
+        String delegateComment = BpmCommentTypeEnum.DELEGATE_START.formatComment(currentUser.getNickname(),
+                delegateUser.getNickname(), reqVO.getReason());
+        taskService.addComment(taskId, task.getProcessInstanceId(),
+                delegateComment, reqVO.getReason());
+        // 新增流程评论记录，同时设置委派原因，便于委派后立即在待办中展示
+        addCommentAndReason(userId, task,
+                BpmCommentTypeEnum.DELEGATE_START.formatComment(currentUser.getNickname(),
+                        delegateUser.getNickname(), reqVO.getReason()), delegateComment);
         taskService.setVariableLocal(task.getId(), BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_IS_DELEGATE,1);
         //给流程增加参数
         // 3.1 设置任务所有人 (owner) 为原任务的处理人 (assignee)
@@ -1254,15 +1262,40 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         AdminUserRespDTO currentUser = adminUserApi.getUser(userId);
         String transferComment = BpmCommentTypeEnum.TRANSFER.formatComment(currentUser.getNickname(),
                 assigneeUser.getNickname(), reqVO.getReason());
-        taskService.addComment(taskId, task.getProcessInstanceId(), BpmCommentTypeEnum.TRANSFER.getType(),
-                BpmCommentTypeEnum.TRANSFER.formatComment(currentUser.getNickname(), assigneeUser.getNickname(), reqVO.getReason()));
-
+        taskService.addComment(taskId, task.getProcessInstanceId(), transferComment, reqVO.getReason());
+        // 新增流程评论记录，同时设置转办原因，便于转办后立即在待办中展示
+        addCommentAndReason(userId, task, reqVO.getReason(), transferComment);
         taskService.setVariableLocal(task.getId(), BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_IS_DELEGATE,2);
         // 3.1 设置任务所有人 (owner) 为原任务的处理人 (assignee)
         taskService.setOwner(taskId, task.getAssignee());
         // 3.2 执行转派（审批人），将任务转派给 assigneeUser
         // 委托（ delegate）和转派（transfer）的差别，就在这块的调用！！！！
         taskService.setAssignee(taskId, reqVO.getAssigneeUserId().toString());
+    }
+
+    /**
+     * 记录流程评论，并保存任务原因，方便在待办中直接展示
+     *
+     * @param userId  用户编号
+     * @param task    当前任务
+     * @param comment 评论内容
+     * @param reason  原因
+     */
+    private void addCommentAndReason(Long userId, Task task, String comment, String reason) {
+        HistoricProcessInstance instance = processInstanceService.getHistoricProcessInstance(task.getProcessInstanceId());
+        if (instance != null) {
+            BpmProcessInstanceCommentCreateReqVO commentVO = new BpmProcessInstanceCommentCreateReqVO();
+            commentVO.setProcessInstanceId(instance.getId());
+            commentVO.setProcessName(instance.getName());
+            commentVO.setContent(comment);
+            commentService.createComment(userId, commentVO);
+        }
+        // 先读取原本的原因信息，避免覆盖
+        String oldReason = (String) taskService.getVariableLocal(task.getId(), BpmnVariableConstants.TASK_VARIABLE_REASON);
+        String newReason = StrUtil.isNotBlank(oldReason)
+                ? oldReason + System.lineSeparator() + reason
+                : reason;
+        taskService.setVariableLocal(task.getId(), BpmnVariableConstants.TASK_VARIABLE_REASON, newReason);
     }
 
     @Override

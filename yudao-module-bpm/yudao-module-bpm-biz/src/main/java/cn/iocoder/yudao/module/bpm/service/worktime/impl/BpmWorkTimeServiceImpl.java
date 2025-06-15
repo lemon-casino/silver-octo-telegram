@@ -126,8 +126,8 @@ public class BpmWorkTimeServiceImpl implements BpmWorkTimeService {
         List<BpmWorkTimeConfigDO> list = workTimeConfigService.getWorkTimeList(workTimeType, date);
         
         if (CollUtil.isEmpty(list)) {
-            log.debug("[getRanges][日期{}类型{}无配置，使用默认工作时间]", date, workTimeType);
-            return DEFAULT_RANGES;
+            log.debug("[getRanges][日期{}类型{}无配置，跳过该日期]", date, workTimeType);
+            return java.util.Collections.emptyList();
         }
         
         List<LocalTime[]> ranges = new ArrayList<>(list.size());
