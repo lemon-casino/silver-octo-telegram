@@ -48,13 +48,13 @@ import org.flowable.task.api.Task;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
-import org.flowable.engine.migration.ProcessInstanceMigrationDocumentBuilder;
+
 import java.util.*;
 import java.util.stream.Collectors;
+
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertMap;
 import static cn.iocoder.yudao.module.bpm.enums.ErrorCodeConstants.*;
-import org.flowable.engine.ProcessMigrationService;
 /**
  * 流程模型实现：主要进行 Flowable {@link Model} 的维护
  *
@@ -500,10 +500,9 @@ public class BpmModelServiceImpl implements BpmModelService {
             }
             
             List<Long> managerUserIds = metaInfo.getManagerUserIds();
-            boolean isManager = CollUtil.isNotEmpty(managerUserIds) && managerUserIds.contains(userId);
-/*            log.info("[isUserProcessInstanceModelManager][检查用户是否为管理员] userId={}, processInstanceId={}, isManager={}, managerUserIds={}",
+            /*            log.info("[isUserProcessInstanceModelManager][检查用户是否为管理员] userId={}, processInstanceId={}, isManager={}, managerUserIds={}",
                     userId, processInstanceId, isManager, managerUserIds);*/
-            return isManager;
+            return CollUtil.isNotEmpty(managerUserIds) && managerUserIds.contains(userId);
         } catch (Exception e) {
 //            log.error("[isUserProcessInstanceModelManager][检查权限异常] userId={}, processInstanceId={}", userId, processInstanceId, e);
             return false;
@@ -588,7 +587,7 @@ public class BpmModelServiceImpl implements BpmModelService {
         respVO.setId(info.getModelId());
         respVO.setKey(definition.getKey());
         respVO.setName(definition.getName());
-
+        respVO.setCategory(model.getCategory());
         System.out.println(definition.getCategory());
 
 
