@@ -12,6 +12,7 @@ import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.B
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.process.BpmProcessDefinitionRespVO;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmCategoryDO;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmFormDO;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.form.BpmFormRespVO;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.BpmnModelUtils;
 import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
 import org.flowable.common.engine.impl.db.SuspensionState;
@@ -80,6 +81,7 @@ public interface BpmModelConvert {
         BeanUtils.copyProperties(metaInfo, modelRespVO);
         if (form != null) {
             modelRespVO.setFormName(form.getName());
+            modelRespVO.setForm(BeanUtils.toBean(form, BpmFormRespVO.class));
         }
         // Category
         if (category != null) {

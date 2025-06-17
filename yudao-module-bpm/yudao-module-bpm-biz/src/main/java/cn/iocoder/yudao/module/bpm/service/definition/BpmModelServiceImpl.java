@@ -545,11 +545,19 @@ public class BpmModelServiceImpl implements BpmModelService {
             return null;
         }
         String oldMeta = model.getMetaInfo();
-        model.setMetaInfo(JsonUtils.toJsonString(BeanUtils.toBean(info, BpmModelMetaInfoVO.class)));
+        BpmModelMetaInfoVO metaInfo = BeanUtils.toBean(info, BpmModelMetaInfoVO.class);
+        model.setMetaInfo(JsonUtils.toJsonString(metaInfo));
+
         BpmnModel bpmnModel = processDefinitionService.getProcessDefinitionBpmnModel(processDefinitionId);
         byte[] bpmnBytes = bpmnModel != null ? cn.hutool.core.util.StrUtil.utf8Bytes(BpmnModelUtils.getBpmnXml(bpmnModel)) : null;
         BpmSimpleModelNodeVO simpleModel = JsonUtils.parseObject(info.getSimpleModel(), BpmSimpleModelNodeVO.class);
-        BpmModelRespVO respVO = BpmModelConvert.INSTANCE.buildModel(model, bpmnBytes, simpleModel);
+        BpmFormDO form = metaInfo.getFormId() != null ? bpmFormService.getForm(metaInfo.getFormId()) : null;
+
+        BpmModelRespVO respVO = BpmModelConvert.INSTANCE.buildModel0(model, metaInfo, form, null, null, null, null);
+        if (ArrayUtil.isNotEmpty(bpmnBytes)) {
+            respVO.setBpmnXml(BpmnModelUtils.getBpmnXml(bpmnBytes));
+        }
+        respVO.setSimpleModel(simpleModel);
         model.setMetaInfo(oldMeta);
         return respVO;
     }
