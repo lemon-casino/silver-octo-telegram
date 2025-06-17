@@ -12,7 +12,8 @@ public class BpmProcessDefinitionRespVO {
 
     @Schema(description = "编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
     private String id;
-
+    @Schema(description = "流程模型编号", example = "a2c5eee0-eb6c-11ee-abf4-0c37967c420a")
+    private String modelId;
     @Schema(description = "版本", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     private Integer version;
 

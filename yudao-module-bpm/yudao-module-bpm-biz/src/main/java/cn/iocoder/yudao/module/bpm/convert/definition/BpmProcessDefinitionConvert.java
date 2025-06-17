@@ -77,6 +77,7 @@ public interface BpmProcessDefinitionConvert {
         // BpmProcessDefinitionInfoDO
         if (processDefinitionInfo != null) {
             copyTo(processDefinitionInfo, respVO);
+            respVO.setModelId(processDefinitionInfo.getModelId());
             // Form
             if (form != null) {
                 respVO.setFormName(form.getName());

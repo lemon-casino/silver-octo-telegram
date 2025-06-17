@@ -19,6 +19,15 @@
 				}
 			],
 			"name":"BPM"
+		},
+		{
+			"hostGroup":[
+				{
+					"env":"local",
+					"url":"http://localhost:8080"
+				}
+			],
+			"name":"yudao-module-bpm-biz"
 		}
 	],
 	"envList":[
@@ -32,7 +41,8 @@
 	"postScript":"",
 	"preScript":"",
 	"projectList":[
-		"BPM"
+		"BPM",
+		"yudao-module-bpm-biz"
 	],
 	"syncModel":{
 		"branch":"master",
