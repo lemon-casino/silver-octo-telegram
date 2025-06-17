@@ -558,7 +558,6 @@ public class BpmModelServiceImpl implements BpmModelService {
             respVO.setBpmnXml(BpmnModelUtils.getBpmnXml(bpmnBytes));
         }
         respVO.setSimpleModel(simpleModel);
-
         model.setMetaInfo(oldMeta);
         return respVO;
     }
