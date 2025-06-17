@@ -98,7 +98,17 @@ public class BpmModelServiceImpl implements BpmModelService {
             modelQuery.modelNameLike("%" + name + "%");
         }
         modelQuery.modelTenantId(FlowableUtils.getTenantId());
-        return modelQuery.list();
+        // 按创建时间降序排序，确保最新的模型排在前面
+        modelQuery.orderByCreateTime().desc();
+        List<Model> models = modelQuery.list();
+        
+        // 按key分组，只保留每个key的最新模型（已经按创建时间降序排序，所以第一个就是最新的）
+        Map<String, Model> latestModelMap = new HashMap<>();
+        for (Model model : models) {
+            latestModelMap.putIfAbsent(model.getKey(), model);
+        }
+        
+        return new ArrayList<>(latestModelMap.values());
     }
 
     @Override
