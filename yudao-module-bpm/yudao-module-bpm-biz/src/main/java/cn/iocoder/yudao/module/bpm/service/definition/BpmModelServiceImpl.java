@@ -134,6 +134,7 @@ public class BpmModelServiceImpl implements BpmModelService {
             BpmProcessDefinitionInfoDO info = processDefinitionService.getProcessDefinitionInfo(processDefinitionId);
             if (info != null) {
                 updateReqVO.setId(info.getModelId());
+                processDefinitionService.updateProcessDefinitionInfo(processDefinitionId, updateReqVO);
             }
         }
         updateModel(userId, updateReqVO);

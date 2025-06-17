@@ -178,4 +178,12 @@ public interface BpmProcessDefinitionService {
      */
     Deployment getDeployment(String id);
 
+    /**
+     * 更新流程定义的扩展信息
+     *
+     * @param processDefinitionId 流程定义编号
+     * @param updateReqVO 流程模型信息
+     */
+    void updateProcessDefinitionInfo(String processDefinitionId, BpmModelSaveReqVO updateReqVO);
+
 }
