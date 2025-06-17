@@ -15,7 +15,9 @@ import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModel
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionRespVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.BpmSimpleModelNodeVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.BpmSimpleModelUpdateReqVO;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.process.BpmProcessDefinitionRespVO;
 import cn.iocoder.yudao.module.bpm.convert.definition.BpmModelConvert;
+import cn.iocoder.yudao.module.bpm.convert.definition.BpmProcessDefinitionConvert;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmFormDO;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmProcessDefinitionInfoDO;
 import cn.iocoder.yudao.module.bpm.dal.mysql.definition.BpmProcessDefinitionInfoMapper;
@@ -39,6 +41,7 @@ import org.flowable.engine.RepositoryService;
 import org.flowable.engine.RuntimeService;
 import org.flowable.engine.TaskService;
 import org.flowable.engine.history.HistoricProcessInstance;
+import org.flowable.engine.repository.Deployment;
 import org.flowable.engine.repository.Model;
 import org.flowable.engine.repository.ModelQuery;
 import org.flowable.engine.repository.ProcessDefinition;
@@ -87,7 +90,8 @@ public class BpmModelServiceImpl implements BpmModelService {
     private BpmProcessInstanceCopyService processInstanceCopyService;
     @Resource
     private BpmProcessDefinitionInfoMapper processDefinitionInfoMapper;
-
+    @Resource
+    private BpmCategoryService categoryService;
     @Override
     public List<Model> getModelList(String name) {
         ModelQuery modelQuery = repositoryService.createModelQuery();
@@ -558,16 +562,27 @@ public class BpmModelServiceImpl implements BpmModelService {
         BpmModelMetaInfoVO metaInfo = BeanUtils.toBean(info, BpmModelMetaInfoVO.class);
         BpmFormDO form = metaInfo.getFormId() != null ? bpmFormService.getForm(metaInfo.getFormId()) : null;
 
+
+
         BpmnModel bpmnModel = processDefinitionService.getProcessDefinitionBpmnModel(processDefinitionId);
         byte[] bpmnBytes = bpmnModel != null ? cn.hutool.core.util.StrUtil.utf8Bytes(BpmnModelUtils.getBpmnXml(bpmnModel)) : null;
         BpmSimpleModelNodeVO simpleModel = JsonUtils.parseObject(info.getSimpleModel(), BpmSimpleModelNodeVO.class);
-
         // 构建返回结果，使用流程定义的基础信息
         BpmModelRespVO respVO = new BpmModelRespVO();
+        if (form != null) {
+            respVO.setFormName(form.getName());
+            respVO.setForm(BeanUtils.toBean(form, BpmFormRespVO.class));
+        }
+        if (ArrayUtil.isNotEmpty(bpmnBytes)) {
+            respVO.setBpmnXml(BpmnModelUtils.getBpmnXml(bpmnBytes));
+        }
         respVO.setId(info.getModelId());
         respVO.setKey(definition.getKey());
         respVO.setName(definition.getName());
-        respVO.setCategory(definition.getCategory());
+
+        System.out.println(definition.getCategory());
+
+        respVO.setCategory(model.getCategory());
         respVO.setCreateTime(DateUtils.of(model.getCreateTime()));
         BeanUtils.copyProperties(metaInfo, respVO);
         if (form != null) {
@@ -576,10 +591,16 @@ public class BpmModelServiceImpl implements BpmModelService {
         }
         if (ArrayUtil.isNotEmpty(bpmnBytes)) {
             respVO.setBpmnXml(BpmnModelUtils.getBpmnXml(bpmnBytes));
-        }
-        respVO.setSimpleModel(simpleModel);
+        } respVO.setSimpleModel(simpleModel);
+
+        // 设置流程定义信息，便于前端区分
+        Deployment deployment = processDefinitionService.getDeployment(definition.getDeploymentId());
+        BpmProcessDefinitionRespVO definitionVO = BpmProcessDefinitionConvert.INSTANCE.buildProcessDefinition(
+                definition, deployment, info, form, null, bpmnModel);
+        respVO.setProcessDefinition(definitionVO);
 
         return respVO;
+
     }
 
     @Override
