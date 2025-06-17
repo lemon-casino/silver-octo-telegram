@@ -2,8 +2,11 @@ package cn.iocoder.yudao.module.bpm.framework.flowable.core.util;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.NumberUtil;
+import cn.hutool.core.util.StrUtil;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 变量类型转换工具类
@@ -18,7 +21,19 @@ public class VariableTypeUtils {
      * @return 转换后的值
      */
     public static Object convertByType(Object variable, Object paramValue) {
-        if (variable == null || paramValue == null) {
+        if (paramValue == null) {
+            return false;
+        }
+
+        String paramStr = paramValue.toString();
+        // 判断是否为空或有内容
+        if ("isEmpty".equalsIgnoreCase(paramStr)) {
+            return isVariableEmpty(variable);
+        } else if ("hasContent".equalsIgnoreCase(paramStr) || "notEmpty".equalsIgnoreCase(paramStr)) {
+            return !isVariableEmpty(variable);
+        }
+
+        if (variable == null) {
             return false;
         }
         // 如果变量是列表类型，获取列表的第一个元素作为类型
@@ -132,5 +147,18 @@ public class VariableTypeUtils {
 
         return paramValue; // 其他类型直接返回原值
     }
+    /**
+     * 判断变量是否为空
+     */
+    private static boolean isVariableEmpty(Object variable) {
+        return switch (variable) {
+            case null -> true;
+            case String s -> StrUtil.isEmpty(s);
+            case Collection<?> objects -> CollUtil.isEmpty(objects);
+            case Map<?, ?> map -> map.isEmpty();
+            default -> false;
+        };
+    }
+
 
 }

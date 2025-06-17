@@ -732,16 +732,21 @@ public class SimpleModelUtils {
                         rightSide = "\"" + rightSide + "\"";
                     }
                     // 处理 contains 和 notContains 操作符
-                    if ("contains".equals(rule.getOpCode())) {
-                        return String.format("var:contains(%s, %s)", rule.getLeftSide(), rightSide);
-                    } else if ("notContains".equals(rule.getOpCode())) {
-                        return String.format("!var:contains(%s, %s)", rule.getLeftSide(), rightSide);
-                    } else {
-                        // 其他操作符使用原有转换逻辑
-                        // 优化：将 rightSide 直接传递给 convertByType
-                        return String.format("%s %s var:convertByType(%s, %s)",
-                                rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);
-                    }
+                    return switch (rule.getOpCode()) {
+                        case "contains" -> String.format("var:contains(%s, %s)", rule.getLeftSide(), rightSide);
+                        case "notContains" -> String.format("!var:contains(%s, %s)", rule.getLeftSide(), rightSide);
+                        case "empty" ->
+                            // 判断变量是否为空
+                                String.format("var:convertByType(%s, \"isEmpty\")", rule.getLeftSide());
+                        case "notEmpty" ->
+                            // 判断变量是否有内容
+                                String.format("var:convertByType(%s, \"hasContent\")", rule.getLeftSide());
+                        case null, default ->
+                            // 其他操作符使用原有转换逻辑
+                            // 优化：将 rightSide 直接传递给 convertByType
+                                String.format("%s %s var:convertByType(%s, %s)",
+                                        rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);
+                    };
                 });
                 // 构造条件组的表达式
                 Boolean and = item.getAnd();

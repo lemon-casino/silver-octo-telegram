@@ -28,6 +28,9 @@ public class VariableConvertByTypeExpressionFunction extends AbstractFlowableVar
      * @return 转换后的值
      */
     public static Object convertByType(VariableContainer variableContainer, String variableName, Object paramValue) {
+        if (variableContainer == null || variableName == null || paramValue == null) {
+            return false;
+        }
         Object variable = variableContainer.getVariable(variableName);
         return VariableTypeUtils.convertByType(variable, paramValue);
     }
