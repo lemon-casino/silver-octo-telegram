@@ -41,6 +41,15 @@ public interface BpmModelService {
     Model getModel(String id);
 
     /**
+     * 获得流程模块
+     *
+     * @param id 编号
+     * @param processDefinitionId 历史流程定义编号
+     * @return 流程模型
+     */
+    Model getModel(String id, String processDefinitionId);
+
+    /**
      * 获得流程模型的 BPMN XML
      *
      * @param id 编号
@@ -63,6 +72,15 @@ public interface BpmModelService {
      * @param updateReqVO 更新信息
      */
     void updateModel(Long userId, @Valid BpmModelSaveReqVO updateReqVO);
+
+    /**
+     * 修改流程模型
+     *
+     * @param userId 用户编号
+     * @param updateReqVO 更新信息
+     * @param processDefinitionId 历史流程定义编号
+     */
+    void updateModel(Long userId, @Valid BpmModelSaveReqVO updateReqVO, String processDefinitionId);
 
     /**
      * 批量更新模型排序

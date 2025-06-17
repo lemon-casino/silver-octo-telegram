@@ -127,6 +127,18 @@ public class BpmModelServiceImpl implements BpmModelService {
         saveModel(model, updateReqVO);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateModel(Long userId, BpmModelSaveReqVO updateReqVO, String processDefinitionId) {
+        if (StrUtil.isNotEmpty(processDefinitionId)) {
+            BpmProcessDefinitionInfoDO info = processDefinitionService.getProcessDefinitionInfo(processDefinitionId);
+            if (info != null) {
+                updateReqVO.setId(info.getModelId());
+            }
+        }
+        updateModel(userId, updateReqVO);
+    }
+
     /**
      * 保存模型的基本信息、流程图
      *
@@ -415,6 +427,21 @@ public class BpmModelServiceImpl implements BpmModelService {
 
     @Override
     public Model getModel(String id) {
+        return repositoryService.getModel(id);
+    }
+
+    @Override
+    public Model getModel(String id, String processDefinitionId) {
+        if (StrUtil.isNotEmpty(processDefinitionId)) {
+            BpmProcessDefinitionInfoDO info = processDefinitionService.getProcessDefinitionInfo(processDefinitionId);
+            if (info == null) {
+                return null;
+            }
+            id = info.getModelId();
+        }
+        if (StrUtil.isEmpty(id)) {
+            return null;
+        }
         return repositoryService.getModel(id);
     }
 
