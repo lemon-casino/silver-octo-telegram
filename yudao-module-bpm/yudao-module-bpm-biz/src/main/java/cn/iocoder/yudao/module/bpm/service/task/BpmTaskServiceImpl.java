@@ -1156,7 +1156,11 @@ public class BpmTaskServiceImpl implements BpmTaskService {
      */
     private void updateTaskStatusAndReason(String id, Integer status, String reason) {
         updateTaskStatus(id, status);
-        taskService.setVariableLocal(id, BpmnVariableConstants.TASK_VARIABLE_REASON, reason);
+        String oldReason = (String) taskService.getVariableLocal(id, BpmnVariableConstants.TASK_VARIABLE_REASON);
+        String newReason = StrUtil.isNotBlank(oldReason)
+                ? oldReason + System.lineSeparator() + reason
+                : reason;
+        taskService.setVariableLocal(id, BpmnVariableConstants.TASK_VARIABLE_REASON, newReason);
     }
 
     @Override
