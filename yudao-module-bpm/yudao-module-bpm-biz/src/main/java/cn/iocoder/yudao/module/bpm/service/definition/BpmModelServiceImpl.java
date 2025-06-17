@@ -4,7 +4,9 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.common.util.date.DateUtils;
 import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
+import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.common.util.validation.ValidationUtils;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelMetaInfoVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelSaveReqVO;
@@ -13,6 +15,7 @@ import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.B
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.BpmSimpleModelUpdateReqVO;
 import cn.iocoder.yudao.module.bpm.convert.definition.BpmModelConvert;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmFormDO;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.form.BpmFormRespVO;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmProcessDefinitionInfoDO;
 import cn.iocoder.yudao.module.bpm.dal.mysql.definition.BpmProcessDefinitionInfoMapper;
 import cn.iocoder.yudao.module.bpm.enums.definition.BpmModelFormTypeEnum;
@@ -120,6 +123,11 @@ public class BpmModelServiceImpl implements BpmModelService {
     @Override
     @Transactional(rollbackFor = Exception.class) // 因为进行多个操作，所以开启事务
     public void updateModel(Long userId, BpmModelSaveReqVO updateReqVO) {
+        if (StrUtil.isNotEmpty(updateReqVO.getProcessDefinitionId())) {
+            updateHistoryModel(userId, updateReqVO.getProcessDefinitionId(), updateReqVO);
+            return;
+        }
+
         // 1. 校验流程模型存在
         Model model = validateModelManager(updateReqVO.getId(), userId);
 
@@ -526,6 +534,68 @@ public class BpmModelServiceImpl implements BpmModelService {
             result.add(vo);
         }
         return result;
+    }
+
+    @Override
+    public BpmModelRespVO getHistoryModel(String processDefinitionId) {
+        BpmProcessDefinitionInfoDO info = processDefinitionService.getProcessDefinitionInfo(processDefinitionId);
+        if (info == null) {
+            return null;
+        }
+
+        // 查询流程定义快照，避免返回最新模型数据
+        ProcessDefinition definition = processDefinitionService.getProcessDefinition(processDefinitionId);
+        if (definition == null) {
+            return null;
+        }
+
+        Model model = getModel(info.getModelId());
+        if (model == null) {
+            return null;
+        }
+
+        BpmModelMetaInfoVO metaInfo = BeanUtils.toBean(info, BpmModelMetaInfoVO.class);
+        BpmFormDO form = metaInfo.getFormId() != null ? bpmFormService.getForm(metaInfo.getFormId()) : null;
+
+        BpmnModel bpmnModel = processDefinitionService.getProcessDefinitionBpmnModel(processDefinitionId);
+        byte[] bpmnBytes = bpmnModel != null ? cn.hutool.core.util.StrUtil.utf8Bytes(BpmnModelUtils.getBpmnXml(bpmnModel)) : null;
+        BpmSimpleModelNodeVO simpleModel = JsonUtils.parseObject(info.getSimpleModel(), BpmSimpleModelNodeVO.class);
+
+        // 构建返回结果，使用流程定义的基础信息
+        BpmModelRespVO respVO = new BpmModelRespVO();
+        respVO.setId(info.getModelId());
+        respVO.setKey(definition.getKey());
+        respVO.setName(definition.getName());
+        respVO.setCategory(definition.getCategory());
+        respVO.setCreateTime(DateUtils.of(model.getCreateTime()));
+        BeanUtils.copyProperties(metaInfo, respVO);
+        if (form != null) {
+            respVO.setFormName(form.getName());
+            respVO.setForm(BeanUtils.toBean(form, BpmFormRespVO.class));
+        }
+        if (ArrayUtil.isNotEmpty(bpmnBytes)) {
+            respVO.setBpmnXml(BpmnModelUtils.getBpmnXml(bpmnBytes));
+        }
+        respVO.setSimpleModel(simpleModel);
+
+        return respVO;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateHistoryModel(Long userId, String processDefinitionId, @Valid BpmModelSaveReqVO reqVO) {
+        BpmProcessDefinitionInfoDO info = processDefinitionService.getProcessDefinitionInfo(processDefinitionId);
+        if (info == null) {
+            throw exception(PROCESS_DEFINITION_NOT_EXISTS);
+        }
+        validateModelManager(info.getModelId(), userId);
+
+        BpmProcessDefinitionInfoDO updateObj = BeanUtils.toBean(reqVO, BpmProcessDefinitionInfoDO.class);
+        updateObj.setId(info.getId());
+        if (reqVO.getSimpleModel() != null) {
+            updateObj.setSimpleModel(JsonUtils.toJsonString(reqVO.getSimpleModel()));
+        }
+        processDefinitionInfoMapper.updateById(updateObj);
     }
 
 }

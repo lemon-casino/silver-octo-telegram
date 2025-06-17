@@ -31,4 +31,7 @@ public class BpmModelSaveReqVO extends BpmModelMetaInfoVO {
     @Valid
     private BpmSimpleModelNodeVO simpleModel;
 
+    @Schema(description = "历史流程定义编号", example = "a2c5eee0-1")
+    private String processDefinitionId;
+
 }
