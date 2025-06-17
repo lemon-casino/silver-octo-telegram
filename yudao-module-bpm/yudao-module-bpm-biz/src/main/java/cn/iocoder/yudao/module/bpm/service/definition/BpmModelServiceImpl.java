@@ -36,11 +36,9 @@ import org.flowable.bpmn.model.BpmnModel;
 import org.flowable.bpmn.model.StartEvent;
 import org.flowable.bpmn.model.UserTask;
 import org.flowable.common.engine.impl.db.SuspensionState;
-import org.flowable.engine.HistoryService;
-import org.flowable.engine.RepositoryService;
-import org.flowable.engine.RuntimeService;
-import org.flowable.engine.TaskService;
+import org.flowable.engine.*;
 import org.flowable.engine.history.HistoricProcessInstance;
+import org.flowable.engine.migration.ProcessInstanceMigrationDocument;
 import org.flowable.engine.repository.Deployment;
 import org.flowable.engine.repository.Model;
 import org.flowable.engine.repository.ModelQuery;
@@ -50,14 +48,13 @@ import org.flowable.task.api.Task;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
-
+import org.flowable.engine.migration.ProcessInstanceMigrationDocumentBuilder;
 import java.util.*;
 import java.util.stream.Collectors;
-
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertMap;
 import static cn.iocoder.yudao.module.bpm.enums.ErrorCodeConstants.*;
-
+import org.flowable.engine.ProcessMigrationService;
 /**
  * 流程模型实现：主要进行 Flowable {@link Model} 的维护
  *
@@ -86,6 +83,8 @@ public class BpmModelServiceImpl implements BpmModelService {
     private RuntimeService runtimeService;
     @Resource
     private TaskService taskService;
+    @Resource
+    private ProcessMigrationService processMigrationService;
     @Resource
     private BpmProcessInstanceCopyService processInstanceCopyService;
     @Resource
@@ -582,7 +581,7 @@ public class BpmModelServiceImpl implements BpmModelService {
 
         System.out.println(definition.getCategory());
 
-        respVO.setCategory(model.getCategory());
+
         respVO.setCreateTime(DateUtils.of(model.getCreateTime()));
         BeanUtils.copyProperties(metaInfo, respVO);
         if (form != null) {
@@ -602,7 +601,6 @@ public class BpmModelServiceImpl implements BpmModelService {
         return respVO;
 
     }
-
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateHistoryModel(Long userId, String processDefinitionId, @Valid BpmModelSaveReqVO reqVO) {
@@ -610,14 +608,59 @@ public class BpmModelServiceImpl implements BpmModelService {
         if (info == null) {
             throw exception(PROCESS_DEFINITION_NOT_EXISTS);
         }
-        validateModelManager(info.getModelId(), userId);
+        Model oldModel = validateModelManager(info.getModelId(), userId);
 
-        BpmProcessDefinitionInfoDO updateObj = BeanUtils.toBean(reqVO, BpmProcessDefinitionInfoDO.class);
-        updateObj.setId(info.getId());
-        if (reqVO.getSimpleModel() != null) {
-            updateObj.setSimpleModel(JsonUtils.toJsonString(reqVO.getSimpleModel()));
+        // 创建新模型，复用旧模型的 key 与租户等信息
+        Model newModel = repositoryService.newModel();
+        newModel.setKey(oldModel.getKey());
+        newModel.setTenantId(oldModel.getTenantId());
+        BpmModelConvert.INSTANCE.copyToModel(newModel, reqVO);
+        repositoryService.saveModel(newModel);
+        // 保存流程图与 SIMPLE 模型数据
+        saveModel(newModel, reqVO);
+
+        // 在部署新版本之前，将当前所有激活状态的流程定义挂起
+        List<ProcessDefinition> activeDefinitions = repositoryService.createProcessDefinitionQuery()
+                .processDefinitionKey(newModel.getKey())
+                .processDefinitionTenantId(FlowableUtils.getTenantId())
+                .active()
+                .list();
+        for (ProcessDefinition definition : activeDefinitions) {
+            log.info("[updateHistoryModel][挂起之前的流程定义，definitionId({}) key({}) version({})]", 
+                    definition.getId(), definition.getKey(), definition.getVersion());
+            processDefinitionService.updateProcessDefinitionState(definition.getId(), 
+                    org.flowable.common.engine.impl.db.SuspensionState.SUSPENDED.getStateCode());
         }
-        processDefinitionInfoMapper.updateById(updateObj);
+
+        // 部署为新的流程定义版本
+        deployModel(userId, newModel.getId());
+        log.info("[updateHistoryModel][部署新的流程定义版本，modelId({}) key({})]", newModel.getId(), newModel.getKey());
+        
+        ProcessDefinition newDefinition = processDefinitionService.getActiveProcessDefinition(newModel.getKey());
+        if (newDefinition == null) {
+            log.warn("[updateHistoryModel][获取活跃的流程定义失败，modelKey({})]", newModel.getKey());
+            return;
+        }
+        log.info("[updateHistoryModel][获取活跃的流程定义，definitionId({}) key({}) version({})]", 
+                newDefinition.getId(), newDefinition.getKey(), newDefinition.getVersion());
+
+        // 迁移历史流程到新的版本
+        try {
+            // 使用processMigrationService创建迁移构建器
+            ProcessInstanceMigrationDocument document = processMigrationService.createProcessInstanceMigrationBuilder()
+                    .migrateToProcessDefinition(newDefinition.getId())
+                    .getProcessInstanceMigrationDocument();
+            log.info("[updateHistoryModel][创建流程迁移文档，从definitionId({})迁移到definitionId({})]", 
+                    processDefinitionId, newDefinition.getId());
+            
+            processMigrationService.migrateProcessInstancesOfProcessDefinition(processDefinitionId, document);
+            log.info("[updateHistoryModel][完成流程实例迁移，从definitionId({})迁移到definitionId({})]", 
+                    processDefinitionId, newDefinition.getId());
+        } catch (Exception e) {
+            log.error("[updateHistoryModel][流程实例迁移失败，从definitionId({})迁移到definitionId({})]", 
+                    processDefinitionId, newDefinition.getId(), e);
+            throw e;
+        }
     }
 
 
