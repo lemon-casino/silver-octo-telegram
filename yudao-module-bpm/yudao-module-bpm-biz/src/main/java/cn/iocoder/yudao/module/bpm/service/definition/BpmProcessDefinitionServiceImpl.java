@@ -7,6 +7,8 @@ import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.common.util.object.PageUtils;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelMetaInfoVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.process.BpmProcessDefinitionPageReqVO;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelSaveReqVO;
+import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmFormDO;
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmProcessDefinitionInfoDO;
 import cn.iocoder.yudao.module.bpm.dal.mysql.definition.BpmProcessDefinitionInfoMapper;
@@ -22,6 +24,7 @@ import org.flowable.engine.repository.Model;
 import org.flowable.engine.repository.ProcessDefinition;
 import org.flowable.engine.repository.ProcessDefinitionQuery;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.*;
@@ -197,6 +200,28 @@ public class BpmProcessDefinitionServiceImpl implements BpmProcessDefinitionServ
     @Override
     public List<BpmProcessDefinitionInfoDO> getProcessDefinitionInfoList(Collection<String> ids) {
         return processDefinitionMapper.selectListByProcessDefinitionIds(ids);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateProcessDefinitionInfo(String processDefinitionId, BpmModelSaveReqVO updateReqVO) {
+        if (StrUtil.isEmpty(processDefinitionId)) {
+            return;
+        }
+        BpmProcessDefinitionInfoDO info = processDefinitionMapper.selectByProcessDefinitionId(processDefinitionId);
+        if (info == null) {
+            return;
+        }
+
+        BpmProcessDefinitionInfoDO updateObj = BeanUtils.toBean(updateReqVO, BpmProcessDefinitionInfoDO.class)
+                .setId(info.getId())
+                .setProcessDefinitionId(processDefinitionId)
+                .setModelId(info.getModelId())
+                .setModelType(updateReqVO.getType());
+        if (updateReqVO.getSimpleModel() != null) {
+            updateObj.setSimpleModel(JsonUtils.toJsonString(updateReqVO.getSimpleModel()));
+        }
+        processDefinitionMapper.updateById(updateObj);
     }
 
     @Override

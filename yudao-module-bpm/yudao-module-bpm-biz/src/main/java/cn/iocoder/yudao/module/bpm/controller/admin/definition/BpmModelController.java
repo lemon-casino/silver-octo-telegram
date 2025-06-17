@@ -98,15 +98,18 @@ public class BpmModelController {
 
     @GetMapping("/get")
     @Operation(summary = "获得模型")
-    @Parameter(name = "id", description = "编号", required = true, example = "1024")
+    @Parameter(name = "id", description = "编号", example = "1024")
+    @Parameter(name = "processDefinitionId", description = "流程定义编号", example = "a2c5eee0")
     @PreAuthorize("@ss.hasPermission('bpm:model:query')")
-    public CommonResult<BpmModelRespVO> getModel(@RequestParam("id") String id) {
-        Model model = modelService.getModel(id);
+    public CommonResult<BpmModelRespVO> getModel(@RequestParam(value = "id", required = false) String id,
+                                                 @RequestParam(value = "processDefinitionId", required = false) String processDefinitionId) {
+        Model model = modelService.getModel(id, processDefinitionId);
         if (model == null) {
             return null;
         }
-        byte[] bpmnBytes = modelService.getModelBpmnXML(id);
-        BpmSimpleModelNodeVO simpleModel = modelService.getSimpleModel(id);
+        String realId = model.getId();
+        byte[] bpmnBytes = modelService.getModelBpmnXML(realId);
+        BpmSimpleModelNodeVO simpleModel = modelService.getSimpleModel(realId);
         return success(BpmModelConvert.INSTANCE.buildModel(model, bpmnBytes, simpleModel));
     }
 
@@ -127,9 +130,11 @@ public class BpmModelController {
 
     @PutMapping("/update")
     @Operation(summary = "修改模型")
+    @Parameter(name = "processDefinitionId", description = "流程定义编号", example = "a2c5eee0")
     @PreAuthorize("@ss.hasPermission('bpm:model:update')")
-    public CommonResult<Boolean> updateModel(@Valid @RequestBody BpmModelSaveReqVO modelVO) {
-        modelService.updateModel(getLoginUserId(), modelVO);
+    public CommonResult<Boolean> updateModel(@Valid @RequestBody BpmModelSaveReqVO modelVO,
+                                             @RequestParam(value = "processDefinitionId", required = false) String processDefinitionId) {
+        modelService.updateModel(getLoginUserId(), modelVO, processDefinitionId);
         return success(true);
     }
 
