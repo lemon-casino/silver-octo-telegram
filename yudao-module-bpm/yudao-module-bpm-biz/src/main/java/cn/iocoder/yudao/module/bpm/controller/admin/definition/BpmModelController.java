@@ -14,6 +14,7 @@ import cn.iocoder.yudao.module.bpm.service.definition.BpmModelService;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmProcessDefinitionService;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
 import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
+import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.BpmModelVersionRespVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -99,9 +100,14 @@ public class BpmModelController {
 
     @GetMapping("/get")
     @Operation(summary = "获得模型")
-    @Parameter(name = "id", description = "编号", required = true, example = "1024")
+    @Parameter(name = "id", description = "编号", example = "1024")
+    @Parameter(name = "processDefinitionId", description = "流程定义编号")
     @PreAuthorize("@ss.hasPermission('bpm:model:query')")
-    public CommonResult<BpmModelRespVO> getModel(@RequestParam("id") String id) {
+    public CommonResult<BpmModelRespVO> getModel(@RequestParam(value = "id", required = false) String id,
+                                                 @RequestParam(value = "processDefinitionId", required = false) String processDefinitionId) {
+        if (StrUtil.isNotEmpty(processDefinitionId)) {
+            return success(modelService.getHistoryModel(processDefinitionId));
+        }
         Model model = modelService.getModel(id);
         if (model == null) {
             return null;

@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model;
 import cn.iocoder.yudao.module.bpm.controller.admin.base.user.UserSimpleBaseVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.model.simple.BpmSimpleModelNodeVO;
 import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.process.BpmProcessDefinitionRespVO;
+import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.form.BpmFormRespVO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -32,6 +33,11 @@ public class BpmModelRespVO extends BpmModelMetaInfoVO {
 
     @Schema(description = "表单名字", example = "请假表单")
     private String formName;
+
+    /**
+     * 关联的表单明细
+     */
+    private BpmFormRespVO form;
 
     @Schema(description = "创建时间", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDateTime createTime;
