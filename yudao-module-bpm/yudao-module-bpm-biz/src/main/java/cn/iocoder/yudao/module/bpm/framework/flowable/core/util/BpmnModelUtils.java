@@ -1004,6 +1004,9 @@ public class BpmnModelUtils {
             variables = new HashMap<>();
         }
 
+        // 将单元素集合转换为实际的值，避免表达式计算时类型不匹配
+        normalizeVariables(variables);
+
         // 执行计算
         try {
             Object result = FlowableUtils.getExpressionValue(variables, expression);
@@ -1069,13 +1072,17 @@ public class BpmnModelUtils {
             return;
         }
         Map<String, Object> formMap = null;
+        Map<String, Object> processMap = null;
         Object obj = variables.get("formVariables");
         if (obj instanceof Map) {
             formMap = (Map<String, Object>) obj;
-        } else {
-            obj = variables.get("processVariables");
-            if (obj instanceof Map) {
-                formMap = (Map<String, Object>) obj;
+        }
+        obj = variables.get("processVariables");
+        if (obj instanceof Map) {
+            processMap = (Map<String, Object>) obj;
+            if (formMap == null) {
+                // 如果仅包含 processVariables，则当作表单变量来源
+                formMap = processMap;
             }
         }
         if (formMap == null || formMap.isEmpty()) {
@@ -1101,6 +1108,26 @@ public class BpmnModelUtils {
                     value = ((Collection<?>) value).iterator().next();
                 }
                 variables.put(varName, value);
+                if (processMap != null && !processMap.containsKey(varName)) {
+                    processMap.put(varName, value);
+                }
+            }
+        }
+    }
+
+    /**
+     * 将值为单元素集合的变量转换为该集合的第一个元素
+     *
+     * @param variables 变量 Map
+     */
+    private static void normalizeVariables(Map<String, Object> variables) {
+        if (variables == null) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : variables.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof Collection && ((Collection<?>) value).size() == 1) {
+                entry.setValue(((Collection<?>) value).iterator().next());
             }
         }
     }
