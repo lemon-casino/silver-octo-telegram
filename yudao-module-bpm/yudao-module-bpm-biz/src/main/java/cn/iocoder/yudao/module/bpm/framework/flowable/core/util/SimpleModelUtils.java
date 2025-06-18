@@ -731,20 +731,19 @@ public class SimpleModelUtils {
                         // 如果非数值类型，加引号
                         rightSide = "\"" + rightSide + "\"";
                     }
-                    // 处理 contains 和 notContains 操作符
+                    // 处理 contains 和 notContains 操作符，同时避免变量未定义导致异常
                     return switch (rule.getOpCode()) {
-                        case "contains" -> String.format("var:contains(%s, %s)", rule.getLeftSide(), rightSide);
-                        case "notContains" -> String.format("!var:contains(%s, %s)", rule.getLeftSide(), rightSide);
+                        case "contains" -> String.format("var:contains('%s', %s)", rule.getLeftSide(), rightSide);
+                        case "notContains" -> String.format("!var:contains('%s', %s)", rule.getLeftSide(), rightSide);
                         case "empty" ->
                             // 判断变量是否为空
-                                String.format("var:convertByType(%s, \"isEmpty\")", rule.getLeftSide());
+                                String.format("var:convertByType('%s', \"isEmpty\")", rule.getLeftSide());
                         case "notEmpty" ->
                             // 判断变量是否有内容
-                                String.format("var:convertByType(%s, \"hasContent\")", rule.getLeftSide());
+                                String.format("var:convertByType('%s', \"hasContent\")", rule.getLeftSide());
                         case null, default ->
-                            // 其他操作符使用原有转换逻辑
-                            // 优化：将 rightSide 直接传递给 convertByType
-                                String.format("%s %s var:convertByType(%s, %s)",
+                            // 其他操作符使用原有转换逻辑，使用 execution.getVariable 避免变量不存在时报错
+                                String.format("execution.getVariable('%s') %s var:convertByType('%s', %s)",
                                         rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);
                     };
                 });
