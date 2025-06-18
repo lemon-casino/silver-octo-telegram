@@ -86,6 +86,10 @@ public interface BpmProcessInstanceConvert {
                     pageResult.getList().get(i).getProcessVariables()));
             // 表单
             respVO.setFormVariables(pageResult.getList().get(i).getProcessVariables());
+            Map<String, Object> variables = pageResult.getList().get(i).getProcessVariables();
+            respVO.setFormVariables(variables);
+            respVO.setFormVariablesDisplay(FlowableUtils.getSummaryAll(
+                    processDefinitionInfoMap.get(respVO.getProcessDefinitionId()), variables));
         }
         return vpPageResult;
     }
@@ -97,7 +101,9 @@ public interface BpmProcessInstanceConvert {
                                                           DeptRespDTO dept) {
         BpmProcessInstanceRespVO respVO = BeanUtils.toBean(processInstance, BpmProcessInstanceRespVO.class);
         respVO.setStatus(FlowableUtils.getProcessInstanceStatus(processInstance))
-                .setFormVariables(FlowableUtils.getProcessInstanceFormVariable(processInstance));
+                .setFormVariables(FlowableUtils.getProcessInstanceFormVariable(processInstance))
+                .setFormVariablesDisplay(FlowableUtils.getSummaryAll(processDefinitionInfo,
+                        processInstance.getProcessVariables()));;
         // definition
         respVO.setProcessDefinition(BeanUtils.toBean(processDefinition, BpmProcessDefinitionRespVO.class));
         copyTo(processDefinitionInfo, respVO.getProcessDefinition());

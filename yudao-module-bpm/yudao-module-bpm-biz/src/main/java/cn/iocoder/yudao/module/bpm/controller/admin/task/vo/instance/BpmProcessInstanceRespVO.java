@@ -42,6 +42,8 @@ public class BpmProcessInstanceRespVO {
 
     @Schema(description = "提交的表单值", requiredMode = Schema.RequiredMode.REQUIRED)
     private Map<String, Object> formVariables;
+    @Schema(description = "提交的表单值（表单项名称对应）")
+    private List<KeyValue<String, String>> formVariablesDisplay;
 
     @Schema(description = "业务的唯一标识-例如说，请假申请的编号", example = "1")
     private String businessKey;
