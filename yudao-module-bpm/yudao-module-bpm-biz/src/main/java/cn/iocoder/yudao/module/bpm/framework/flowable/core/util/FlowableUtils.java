@@ -230,8 +230,9 @@ public class FlowableUtils {
             return convertList(processDefinitionInfo.getSummarySetting().getSummary(), item -> {
                 BpmFormFieldVO formField = formFieldsMap.get(item);
                 if (formField != null) {
+                    Object value = processVariables.get(item);
                     return new KeyValue<String, String>(formField.getTitle(),
-                            processVariables.getOrDefault(item, "").toString());
+                            value != null ? value.toString() : "");
                 }
                 return null;
             });
@@ -240,8 +241,13 @@ public class FlowableUtils {
         // 情况二：默认摘要展示前三个表单字段
         return formFieldsMap.entrySet().stream()
                 .limit(3)
-                .map(entry -> new KeyValue<>(entry.getValue().getTitle(),
-                        processVariables.getOrDefault(entry.getValue().getField(), "").toString()))
+                .map(entry -> {
+                    Object value = processVariables.getOrDefault(entry.getValue().getField(), "");
+                    return new KeyValue<>(
+                            entry.getValue().getTitle(),
+                            value != null ? value.toString() : ""
+                    );
+                })
                 .collect(Collectors.toList());
     }
 
@@ -438,8 +444,12 @@ public class FlowableUtils {
         });
 
         return formFieldsMap.values().stream()
-                .map(bpmFormFieldVO -> new KeyValue<>(bpmFormFieldVO.getTitle(),
-                        processVariables.getOrDefault(bpmFormFieldVO.getField(), "").toString()))
+                .map(bpmFormFieldVO -> {
+                    String fieldKey = bpmFormFieldVO.getField();
+                    return Optional.ofNullable(fieldKey)
+                            .map(key -> new KeyValue<>(bpmFormFieldVO.getTitle(), Optional.ofNullable(processVariables.get(key)).map(Object::toString).orElse("")))
+                            .orElse(new KeyValue<>(bpmFormFieldVO.getTitle(), "")); // 不合法的键处理
+                })
                 .collect(Collectors.toList());
     }
 }

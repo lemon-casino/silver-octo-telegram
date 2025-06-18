@@ -18,13 +18,15 @@ import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnModelConsta
 import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.bpmn.converter.BpmnXMLConverter;
-import org.flowable.bpmn.model.Process;
 import org.flowable.bpmn.model.*;
+import org.flowable.bpmn.model.Process;
 import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.impl.util.io.BytesStreamSource;
 import org.flowable.engine.impl.el.FixedValue;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnModelConstants.*;
@@ -985,7 +987,6 @@ public class BpmnModelUtils {
             return;
         }
     }
-
     /**
      * 计算条件表达式是否为 true 满足条件
      *
@@ -1002,6 +1003,9 @@ public class BpmnModelUtils {
             variables = new HashMap<>();
         }
 
+        // 将单元素集合转换为实际的值，避免表达式计算时类型不匹配
+        normalizeVariables(variables);
+
         // 执行计算
         try {
             Object result = FlowableUtils.getExpressionValue(variables, expression);
@@ -1009,10 +1013,123 @@ public class BpmnModelUtils {
             log.debug("[evalConditionExpress][条件表达式({}) 变量({}) 结果({})]", expression, variables, evalResult);
             return evalResult;
         } catch (FlowableException ex) {
-            log.info("[evalConditionExpress][条件表达式({}) 变量({}) 解析报错]", expression, variables, ex);
-            return Boolean.FALSE;
+            log.info("[evalConditionExpress][条件表达式({}) 变量({}) 解析报错，尝试补充变量后重新计算]", expression, variables, ex);
+            // 如果解析失败，尝试解析表达式中的变量，并从表单变量补充缺失的值
+            fillMissingVariables(variables, expression);
+            fillVariablesFromForm(variables, expression);
+            try {
+                Object result = FlowableUtils.getExpressionValue(variables, expression);
+                boolean evalResult = Boolean.TRUE.equals(result);
+                log.debug("[evalConditionExpress][retry][条件表达式({}) 变量({}) 结果({})]", expression, variables, evalResult);
+                return evalResult;
+            } catch (FlowableException retryEx) {
+                log.info("[evalConditionExpress][retry][条件表达式({}) 变量({}) 再次解析报错]", expression, variables, retryEx);
+                return Boolean.FALSE;
+            }
         }
     }
+
+    /**
+     * 解析表达式，填充缺失的变量为 null，避免因为找不到变量导致解析失败
+     *
+     * @param variables  已有变量
+     * @param expression 条件表达式
+     */
+    private static void fillMissingVariables(Map<String, Object> variables, String expression) {
+        if (StrUtil.isEmpty(expression)) {
+            return;
+        }
+        // 先解析出函数名，例如 var:convertByType()，避免被当成变量
+        Set<String> functionNames = new HashSet<>();
+        Matcher funcMatcher = Pattern.compile("var:([A-Za-z_][A-Za-z0-9_]*)").matcher(expression);
+        while (funcMatcher.find()) {
+            functionNames.add(funcMatcher.group(1));
+        }
+
+        // 使用正则解析形如 abc、abc_xyz 等变量名
+        Matcher matcher = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*").matcher(expression);
+        while (matcher.find()) {
+            String varName = matcher.group();
+            // 跳过 flowable 内置关键字或函数名
+            if (variables.containsKey(varName) || "var".equals(varName) || functionNames.contains(varName)) {
+                continue;
+            }
+            variables.put(varName, null);
+        }
+    }
+    /**
+     * 将值为单元素集合的变量转换为该集合的第一个元素
+     *
+     * @param variables 变量 Map
+     */
+    private static void normalizeVariables(Map<String, Object> variables) {
+        if (variables == null) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : variables.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof Collection && ((Collection<?>) value).size() == 1) {
+                entry.setValue(((Collection<?>) value).iterator().next());
+            }
+        }
+    }
+
+    /**
+     * 从 variables 中查找名为 formVariables 或 processVariables 的嵌套 Map，
+     * 将表达式中缺失的变量从这些 Map 补充到 variables 中
+     *
+     * @param variables  已有变量，可能包含表单变量
+     * @param expression 条件表达式
+     */
+    @SuppressWarnings("unchecked")
+    private static void fillVariablesFromForm(Map<String, Object> variables, String expression) {
+        if (StrUtil.isEmpty(expression) || variables == null) {
+            return;
+        }
+        Map<String, Object> formMap = null;
+        Map<String, Object> processMap = null;
+        Object obj = variables.get("formVariables");
+        if (obj instanceof Map) {
+            formMap = (Map<String, Object>) obj;
+        }
+        obj = variables.get("processVariables");
+        if (obj instanceof Map) {
+            processMap = (Map<String, Object>) obj;
+            if (formMap == null) {
+                // 如果仅包含 processVariables，则当作表单变量来源
+                formMap = processMap;
+            }
+        }
+        if (formMap == null || formMap.isEmpty()) {
+            return;
+        }
+
+        // 提取表达式中使用到的函数名称，避免被当做变量
+        Set<String> functionNames = new HashSet<>();
+        Matcher funcMatcher = Pattern.compile("var:([A-Za-z_][A-Za-z0-9_]*)").matcher(expression);
+        while (funcMatcher.find()) {
+            functionNames.add(funcMatcher.group(1));
+        }
+
+        Matcher matcher = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*").matcher(expression);
+        while (matcher.find()) {
+            String varName = matcher.group();
+            if (variables.containsKey(varName) || "var".equals(varName) || functionNames.contains(varName)) {
+                continue;
+            }
+            if (formMap.containsKey(varName)) {
+                Object value = formMap.get(varName);
+                if (value instanceof Collection && ((Collection<?>) value).size() == 1) {
+                    value = ((Collection<?>) value).iterator().next();
+                }
+                variables.put(varName, value);
+                if (processMap != null && !processMap.containsKey(varName)) {
+                    processMap.put(varName, value);
+                }
+            }
+        }
+    }
+
 
     @SuppressWarnings("PatternVariableCanBeUsed")
     public static boolean isSequentialUserTask(FlowElement flowElement) {
