@@ -25,6 +25,8 @@ import org.flowable.common.engine.impl.util.io.BytesStreamSource;
 import org.flowable.engine.impl.el.FixedValue;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnModelConstants.*;
@@ -1009,8 +1011,40 @@ public class BpmnModelUtils {
             log.debug("[evalConditionExpress][条件表达式({}) 变量({}) 结果({})]", expression, variables, evalResult);
             return evalResult;
         } catch (FlowableException ex) {
-            log.info("[evalConditionExpress][条件表达式({}) 变量({}) 解析报错]", expression, variables, ex);
-            return Boolean.FALSE;
+            log.info("[evalConditionExpress][条件表达式({}) 变量({}) 解析报错，尝试补充变量后重新计算]", expression, variables, ex);
+            // 如果解析失败，尝试解析表达式中的变量，并为缺失的变量填充 null 值重新计算
+            fillMissingVariables(variables, expression);
+            try {
+                Object result = FlowableUtils.getExpressionValue(variables, expression);
+                boolean evalResult = Boolean.TRUE.equals(result);
+                log.debug("[evalConditionExpress][retry][条件表达式({}) 变量({}) 结果({})]", expression, variables, evalResult);
+                return evalResult;
+            } catch (FlowableException retryEx) {
+                log.info("[evalConditionExpress][retry][条件表达式({}) 变量({}) 再次解析报错]", expression, variables, retryEx);
+                return Boolean.FALSE;
+            }
+        }
+    }
+
+    /**
+     * 解析表达式，填充缺失的变量为 null，避免因为找不到变量导致解析失败
+     *
+     * @param variables  已有变量
+     * @param expression 条件表达式
+     */
+    private static void fillMissingVariables(Map<String, Object> variables, String expression) {
+        if (StrUtil.isEmpty(expression)) {
+            return;
+        }
+        // 使用正则解析形如 abc、abc_xyz 等变量名
+        Matcher matcher = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*").matcher(expression);
+        while (matcher.find()) {
+            String varName = matcher.group();
+            // 跳过 flowable 内置关键字，如 'var'
+            if (variables.containsKey(varName) || "var".equals(varName)) {
+                continue;
+            }
+            variables.put(varName, null);
         }
     }
 
