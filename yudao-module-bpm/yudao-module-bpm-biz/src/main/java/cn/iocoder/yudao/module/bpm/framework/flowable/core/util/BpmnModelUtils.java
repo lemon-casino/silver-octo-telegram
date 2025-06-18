@@ -1012,8 +1012,9 @@ public class BpmnModelUtils {
             return evalResult;
         } catch (FlowableException ex) {
             log.info("[evalConditionExpress][条件表达式({}) 变量({}) 解析报错，尝试补充变量后重新计算]", expression, variables, ex);
-            // 如果解析失败，尝试解析表达式中的变量，并为缺失的变量填充 null 值重新计算
+            // 如果解析失败，尝试解析表达式中的变量，并从表单变量补充缺失的值
             fillMissingVariables(variables, expression);
+            fillVariablesFromForm(variables, expression);
             try {
                 Object result = FlowableUtils.getExpressionValue(variables, expression);
                 boolean evalResult = Boolean.TRUE.equals(result);
@@ -1045,6 +1046,44 @@ public class BpmnModelUtils {
                 continue;
             }
             variables.put(varName, null);
+        }
+    }
+
+    /**
+     * 从 variables 中查找名为 formVariables 或 processVariables 的嵌套 Map，
+     * 将表达式中缺失的变量从这些 Map 补充到 variables 中
+     *
+     * @param variables  已有变量，可能包含表单变量
+     * @param expression 条件表达式
+     */
+    @SuppressWarnings("unchecked")
+    private static void fillVariablesFromForm(Map<String, Object> variables, String expression) {
+        if (StrUtil.isEmpty(expression) || variables == null) {
+            return;
+        }
+        Map<String, Object> formMap = null;
+        Object obj = variables.get("formVariables");
+        if (obj instanceof Map) {
+            formMap = (Map<String, Object>) obj;
+        } else {
+            obj = variables.get("processVariables");
+            if (obj instanceof Map) {
+                formMap = (Map<String, Object>) obj;
+            }
+        }
+        if (formMap == null || formMap.isEmpty()) {
+            return;
+        }
+
+        Matcher matcher = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*").matcher(expression);
+        while (matcher.find()) {
+            String varName = matcher.group();
+            if (variables.containsKey(varName) || "var".equals(varName)) {
+                continue;
+            }
+            if (formMap.containsKey(varName)) {
+                variables.put(varName, formMap.get(varName));
+            }
         }
     }
 
