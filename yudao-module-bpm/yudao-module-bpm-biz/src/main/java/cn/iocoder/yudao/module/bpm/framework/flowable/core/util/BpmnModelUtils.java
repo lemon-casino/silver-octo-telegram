@@ -1037,12 +1037,19 @@ public class BpmnModelUtils {
         if (StrUtil.isEmpty(expression)) {
             return;
         }
+        // 先解析出函数名，例如 var:convertByType()，避免被当成变量
+        Set<String> functionNames = new HashSet<>();
+        Matcher funcMatcher = Pattern.compile("var:([A-Za-z_][A-Za-z0-9_]*)").matcher(expression);
+        while (funcMatcher.find()) {
+            functionNames.add(funcMatcher.group(1));
+        }
+
         // 使用正则解析形如 abc、abc_xyz 等变量名
         Matcher matcher = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*").matcher(expression);
         while (matcher.find()) {
             String varName = matcher.group();
-            // 跳过 flowable 内置关键字，如 'var'
-            if (variables.containsKey(varName) || "var".equals(varName)) {
+            // 跳过 flowable 内置关键字或函数名
+            if (variables.containsKey(varName) || "var".equals(varName) || functionNames.contains(varName)) {
                 continue;
             }
             variables.put(varName, null);
@@ -1075,14 +1082,25 @@ public class BpmnModelUtils {
             return;
         }
 
+        // 提取表达式中使用到的函数名称，避免被当做变量
+        Set<String> functionNames = new HashSet<>();
+        Matcher funcMatcher = Pattern.compile("var:([A-Za-z_][A-Za-z0-9_]*)").matcher(expression);
+        while (funcMatcher.find()) {
+            functionNames.add(funcMatcher.group(1));
+        }
+
         Matcher matcher = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*").matcher(expression);
         while (matcher.find()) {
             String varName = matcher.group();
-            if (variables.containsKey(varName) || "var".equals(varName)) {
+            if (variables.containsKey(varName) || "var".equals(varName) || functionNames.contains(varName)) {
                 continue;
             }
             if (formMap.containsKey(varName)) {
-                variables.put(varName, formMap.get(varName));
+                Object value = formMap.get(varName);
+                if (value instanceof Collection && ((Collection<?>) value).size() == 1) {
+                    value = ((Collection<?>) value).iterator().next();
+                }
+                variables.put(varName, value);
             }
         }
     }
