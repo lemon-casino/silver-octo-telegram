@@ -732,13 +732,21 @@ public class SimpleModelUtils {
                     }
                     // 处理 contains 和 notContains 操作符
                     if ("contains".equals(rule.getOpCode())) {
-                        return String.format("var:contains(%s, %s)", rule.getLeftSide(), rightSide);
+                        // 传入变量名，变量不存在时返回 false
+                        return String.format("var:contains(\"%s\", %s)", rule.getLeftSide(), rightSide);
                     } else if ("notContains".equals(rule.getOpCode())) {
-                        return String.format("!var:contains(%s, %s)", rule.getLeftSide(), rightSide);
+                        // 传入变量名，变量不存在时返回 false
+                        return String.format("!var:contains(\"%s\", %s)", rule.getLeftSide(), rightSide);
+                    } else if ("==".equals(rule.getOpCode())) {
+                        // 使用自定义 equals 函数，变量不存在时返回 false
+                        return String.format("var:equals(\"%s\", %s)", rule.getLeftSide(), rightSide);
+                    } else if ("!=".equals(rule.getOpCode())) {
+                        // 不等于时取反即可
+                        return String.format("!var:equals(\"%s\", %s)", rule.getLeftSide(), rightSide);
                     } else {
                         // 其他操作符使用原有转换逻辑
                         // 优化：将 rightSide 直接传递给 convertByType
-                        return String.format("%s %s var:convertByType(%s, %s)",
+                        return String.format("%s %s var:convertByType(\"%s\", %s)",
                                 rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);
                     }
                 });
