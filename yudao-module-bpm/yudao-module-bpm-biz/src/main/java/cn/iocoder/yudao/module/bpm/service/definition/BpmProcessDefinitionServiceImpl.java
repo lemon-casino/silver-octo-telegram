@@ -22,6 +22,8 @@ import org.flowable.engine.repository.Model;
 import org.flowable.engine.repository.ProcessDefinition;
 import org.flowable.engine.repository.ProcessDefinitionQuery;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.*;
@@ -80,7 +82,10 @@ public class BpmProcessDefinitionServiceImpl implements BpmProcessDefinitionServ
     public ProcessDefinition getActiveProcessDefinition(String key) {
         return repositoryService.createProcessDefinitionQuery()
                 .processDefinitionTenantId(FlowableUtils.getTenantId())
-                .processDefinitionKey(key).active().singleResult();
+                .processDefinitionKey(key)
+                .active()
+                .latestVersion()
+                .singleResult();
     }
 
     @Override
@@ -154,6 +159,7 @@ public class BpmProcessDefinitionServiceImpl implements BpmProcessDefinitionServ
     }
 
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void updateProcessDefinitionState(String id, Integer state) {
         ProcessDefinition processDefinition = repositoryService.getProcessDefinition(id);
         if (processDefinition == null) {

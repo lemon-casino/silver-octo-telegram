@@ -26,4 +26,9 @@ public class BpmTaskApproveReqVO {
 
     @Schema(description = "发起人自选审批人 Map", example = "{taskKey1: [1, 2]}")
     private Map<String, List<Long>> startUserSelectAssignees;
+    @Schema(description = "流程实例编号", example = "1024")
+    private String processInstanceId;
+
+    @Schema(description = "是否是管理员", example = "false")
+    private Boolean managerial = false;
 }

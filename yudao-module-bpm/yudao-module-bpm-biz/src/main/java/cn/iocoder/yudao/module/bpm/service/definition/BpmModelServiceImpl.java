@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.bpm.service.definition;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.ObjUtil;
+import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.util.date.DateUtils;
 import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
@@ -654,7 +655,7 @@ public class BpmModelServiceImpl implements BpmModelService {
                 newDefinition.getId(), newDefinition.getKey(), newDefinition.getVersion());
 
         // 1. 记录迁移前各流程实例当前任务的负责人和局部变量
-        List<Task> beforeTasks = taskService.createTaskQuery()
+/*        List<Task> beforeTasks = taskService.createTaskQuery()
                 .processDefinitionId(processDefinitionId)
                 .includeTaskLocalVariables()
                 .active()
@@ -666,7 +667,7 @@ public class BpmModelServiceImpl implements BpmModelService {
             snap.owner = task.getOwner();
             snap.localVariables = new HashMap<>(task.getTaskLocalVariables());
             taskSnapshotMap.put(task.getProcessInstanceId() + ":" + task.getTaskDefinitionKey(), snap);
-        }
+        }*/
 
         // 迁移历史流程到新的版本
         try {
@@ -693,20 +694,25 @@ public class BpmModelServiceImpl implements BpmModelService {
                     .includeTaskLocalVariables()
                     .active()
                     .list();
+            BpmnModel bpmnModel = processDefinitionService.getProcessDefinitionBpmnModel(newDefinition.getId());
             for (Task task : afterTasks) {
-                String key = task.getProcessInstanceId() + ":" + task.getTaskDefinitionKey();
-                TaskSnapshot snap = taskSnapshotMap.get(key);
-                if (snap != null) {
-                    if (StrUtil.isNotEmpty(snap.assignee)) {
-                        taskService.setAssignee(task.getId(), snap.assignee);
-                    }
-                    if (StrUtil.isNotEmpty(snap.owner)) {
-                        taskService.setOwner(task.getId(), snap.owner);
-                    }
-                    for (Map.Entry<String, Object> entry : snap.localVariables.entrySet()) {
-                        taskService.setVariableLocal(task.getId(), entry.getKey(), entry.getValue());
+                ProcessInstance instance = runtimeService.createProcessInstanceQuery()
+                        .processInstanceId(task.getProcessInstanceId())
+                        .includeProcessVariables()
+                        .singleResult();
+                if (instance != null) {
+                    Long startUserId = FlowableUtils.getProcessInstanceStartUserId(instance);
+                    Set<Long> candidateUserIds = taskCandidateInvoker.calculateUsersByActivity(bpmnModel,
+                            task.getTaskDefinitionKey(), startUserId, newDefinition.getId(), instance.getProcessVariables());
+                    if (CollUtil.isNotEmpty(candidateUserIds)) {
+                        int index = RandomUtil.randomInt(candidateUserIds.size());
+                        Long assigneeUserId = CollUtil.get(candidateUserIds, index);
+                        taskService.setAssignee(task.getId(), String.valueOf(assigneeUserId));
+                    } else {
+                        taskService.setAssignee(task.getId(), null);
                     }
                 }
+
             }
         } catch (Exception e) {
             log.error("[updateHistoryModel][流程实例迁移失败，从definitionId({})迁移到definitionId({})]",
@@ -714,15 +720,15 @@ public class BpmModelServiceImpl implements BpmModelService {
             throw e;
         }
     }
-
-    /**
+/*
+    *//**
      * 迁移任务快照
-     */
+     *//*
     private static class TaskSnapshot {
         String assignee;
         String owner;
         Map<String, Object> localVariables = new HashMap<>();
-    }
+    }*/
 
 
 }

@@ -16,4 +16,6 @@ public class BpmTaskRejectReqVO {
     @Schema(description = "审批意见", requiredMode = Schema.RequiredMode.REQUIRED, example = "不错不错！")
     private String reason;
 
+    @Schema(description = "是否是管理员", example = "false")
+    private Boolean managerial = false;
 }
