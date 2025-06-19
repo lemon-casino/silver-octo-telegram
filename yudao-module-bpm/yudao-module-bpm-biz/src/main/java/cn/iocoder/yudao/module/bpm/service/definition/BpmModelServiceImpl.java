@@ -635,44 +635,94 @@ public class BpmModelServiceImpl implements BpmModelService {
                 .active()
                 .list();
         for (ProcessDefinition definition : activeDefinitions) {
-            log.info("[updateHistoryModel][挂起之前的流程定义，definitionId({}) key({}) version({})]", 
+            log.info("[updateHistoryModel][挂起之前的流程定义，definitionId({}) key({}) version({})]",
                     definition.getId(), definition.getKey(), definition.getVersion());
-            processDefinitionService.updateProcessDefinitionState(definition.getId(), 
+            processDefinitionService.updateProcessDefinitionState(definition.getId(),
                     org.flowable.common.engine.impl.db.SuspensionState.SUSPENDED.getStateCode());
         }
 
         // 部署为新的流程定义版本
         deployModel(userId, newModel.getId());
         log.info("[updateHistoryModel][部署新的流程定义版本，modelId({}) key({})]", newModel.getId(), newModel.getKey());
-        
+
         ProcessDefinition newDefinition = processDefinitionService.getActiveProcessDefinition(newModel.getKey());
         if (newDefinition == null) {
             log.warn("[updateHistoryModel][获取活跃的流程定义失败，modelKey({})]", newModel.getKey());
             return;
         }
-        log.info("[updateHistoryModel][获取活跃的流程定义，definitionId({}) key({}) version({})]", 
+        log.info("[updateHistoryModel][获取活跃的流程定义，definitionId({}) key({}) version({})]",
                 newDefinition.getId(), newDefinition.getKey(), newDefinition.getVersion());
+
+        // 1. 记录迁移前各流程实例当前任务的负责人和局部变量
+        List<Task> beforeTasks = taskService.createTaskQuery()
+                .processDefinitionId(processDefinitionId)
+                .includeTaskLocalVariables()
+                .active()
+                .list();
+        Map<String, TaskSnapshot> taskSnapshotMap = new HashMap<>();
+        for (Task task : beforeTasks) {
+            TaskSnapshot snap = new TaskSnapshot();
+            snap.assignee = task.getAssignee();
+            snap.owner = task.getOwner();
+            snap.localVariables = new HashMap<>(task.getTaskLocalVariables());
+            taskSnapshotMap.put(task.getProcessInstanceId() + ":" + task.getTaskDefinitionKey(), snap);
+        }
 
         // 迁移历史流程到新的版本
         try {
-            // 使用processMigrationService创建迁移构建器
+            // 使用 processMigrationService 创建迁移构建器，并映射相同 ID 的节点
+
             ProcessInstanceMigrationDocument document = processMigrationService.createProcessInstanceMigrationBuilder()
                     .migrateToProcessDefinition(newDefinition.getId())
                     .getProcessInstanceMigrationDocument();
-            log.info("[updateHistoryModel][创建流程迁移文档，从definitionId({})迁移到definitionId({})]", 
+            log.info("[updateHistoryModel][创建流程迁移文档，从definitionId({})迁移到definitionId({})]",
                     processDefinitionId, newDefinition.getId());
-            
+
             processMigrationService.migrateProcessInstancesOfProcessDefinition(processDefinitionId, document);
-            log.info("[updateHistoryModel][完成流程实例迁移，从definitionId({})迁移到definitionId({})]", 
+
+            log.info("[updateHistoryModel][创建流程迁移文档，从definitionId({})迁移到definitionId({})]",
                     processDefinitionId, newDefinition.getId());
+
+            processMigrationService.migrateProcessInstancesOfProcessDefinition(processDefinitionId, document);
+            log.info("[updateHistoryModel][完成流程实例迁移，从definitionId({})迁移到definitionId({})]",
+                    processDefinitionId, newDefinition.getId());
+
+            // 2. 迁移完成后，恢复任务的负责人和局部变量
+            List<Task> afterTasks = taskService.createTaskQuery()
+                    .processDefinitionId(newDefinition.getId())
+                    .includeTaskLocalVariables()
+                    .active()
+                    .list();
+            for (Task task : afterTasks) {
+                String key = task.getProcessInstanceId() + ":" + task.getTaskDefinitionKey();
+                TaskSnapshot snap = taskSnapshotMap.get(key);
+                if (snap != null) {
+                    if (StrUtil.isNotEmpty(snap.assignee)) {
+                        taskService.setAssignee(task.getId(), snap.assignee);
+                    }
+                    if (StrUtil.isNotEmpty(snap.owner)) {
+                        taskService.setOwner(task.getId(), snap.owner);
+                    }
+                    for (Map.Entry<String, Object> entry : snap.localVariables.entrySet()) {
+                        taskService.setVariableLocal(task.getId(), entry.getKey(), entry.getValue());
+                    }
+                }
+            }
         } catch (Exception e) {
-            log.error("[updateHistoryModel][流程实例迁移失败，从definitionId({})迁移到definitionId({})]", 
+            log.error("[updateHistoryModel][流程实例迁移失败，从definitionId({})迁移到definitionId({})]",
                     processDefinitionId, newDefinition.getId(), e);
             throw e;
         }
     }
 
-
+    /**
+     * 迁移任务快照
+     */
+    private static class TaskSnapshot {
+        String assignee;
+        String owner;
+        Map<String, Object> localVariables = new HashMap<>();
+    }
 
 
 }
