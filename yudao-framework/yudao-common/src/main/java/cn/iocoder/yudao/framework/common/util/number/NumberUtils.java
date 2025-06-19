@@ -13,11 +13,25 @@ import java.math.BigDecimal;
 public class NumberUtils {
 
     public static Long parseLong(String str) {
-        return StrUtil.isNotEmpty(str) ? Long.valueOf(str) : null;
+        if (StrUtil.isBlank(str)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(str);
+        } catch (NumberFormatException ignore) {
+            return null;
+        }
     }
 
     public static Integer parseInt(String str) {
-        return StrUtil.isNotEmpty(str) ? Integer.valueOf(str) : null;
+        if (StrUtil.isBlank(str)) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(str);
+        } catch (NumberFormatException ignore) {
+            return null;
+        }
     }
 
     /**

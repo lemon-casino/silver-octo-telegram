@@ -328,11 +328,12 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     public List<HistoricTaskInstance> getTaskListByProcessInstanceId(String processInstanceId, Boolean asc) {
         HistoricTaskInstanceQuery query = historyService.createHistoricTaskInstanceQuery()
                 .includeTaskLocalVariables()
-                .processInstanceId(processInstanceId);
+                .processInstanceId(processInstanceId)
+                .orderByHistoricTaskInstanceStartTime();
         if (Boolean.TRUE.equals(asc)) {
-            query.orderByHistoricTaskInstanceStartTime().asc();
+            query.desc();
         } else {
-            query.orderByHistoricTaskInstanceStartTime().desc();
+            query.asc();
         }
         return query.list();
     }
@@ -397,39 +398,36 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     }
 
     @Override
-    public List<UserTask> getUserTaskListByReturn(String id) {
+    public List<UserTask> getUserTaskListByReturn(String id, boolean managerial) {
         // 1.1 校验当前任务 task 存在
         Task task = validateTaskExist(id);
         // 1.2 根据流程定义获取流程模型信息
         BpmnModel bpmnModel = modelService.getBpmnModelByDefinitionId(task.getProcessDefinitionId());
-        FlowElement source = BpmnModelUtils.getFlowElementById(bpmnModel, task.getTaskDefinitionKey());
-        if (source == null) {
-            throw exception(TASK_NOT_EXISTS);
+        List<UserTask> allUserTasks = BpmnModelUtils.getBpmnModelElements(bpmnModel, UserTask.class);
+        if (managerial) {
+            return allUserTasks;
         }
+        // 获取已完成的历史任务，按照开始时间排序
+        List<HistoricTaskInstance> history = historyService.createHistoricTaskInstanceQuery()
+                .processInstanceId(task.getProcessInstanceId())
+                .finished()
+                .orderByHistoricTaskInstanceStartTime().asc()
+                .list();
 
-        // 2.1 查询该任务的前置任务节点的 key 集合
-        List<UserTask> previousUserList = BpmnModelUtils.getPreviousUserTaskList(source, null, null);
-        if (CollUtil.isEmpty(previousUserList)) {
-            return Collections.emptyList();
-        }
+        Set<String> historyKeys = history.stream()
+                .map(HistoricTaskInstance::getTaskDefinitionKey)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, UserTask> map = allUserTasks.stream()
+                .collect(Collectors.toMap(UserTask::getId, ut -> ut, (a,b) -> a));
 
-        // 2.2 如果当前节点在并行网关内,需要特殊处理
-        if (isInParallelGateway(source)) {
-            // 获取并行/包容网关节点
-            Gateway parallelGateway = getParentParallelGateway(source);
-            if (parallelGateway != null) {
-                // 获取并行网关前的所有用户任务节点
-                List<UserTask> gatewayPreviousList = BpmnModelUtils.getPreviousUserTaskList(parallelGateway, null, null);
-                if (CollUtil.isNotEmpty(gatewayPreviousList)) {
-                    previousUserList.addAll(gatewayPreviousList);
-                }
+        List<UserTask> result = new ArrayList<>();
+        for (String key : historyKeys) {
+            UserTask ut = map.get(key);
+            if (ut != null) {
+                result.add(ut);
             }
         }
-
-        // 2.3 过滤重复节点
-        previousUserList = CollUtil.distinct(previousUserList);
-
-        return previousUserList;
+        return result;
     }
 
     /**

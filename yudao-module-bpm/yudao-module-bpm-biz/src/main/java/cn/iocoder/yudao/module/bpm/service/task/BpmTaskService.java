@@ -130,7 +130,7 @@ public interface BpmTaskService {
      * @param id 当前的任务 ID
      * @return 可以退回的节点列表
      */
-    List<UserTask> getUserTaskListByReturn(String id);
+    List<UserTask> getUserTaskListByReturn(String id, boolean managerial);
 
     /**
      * 获取指定任务的子任务列表（多层）

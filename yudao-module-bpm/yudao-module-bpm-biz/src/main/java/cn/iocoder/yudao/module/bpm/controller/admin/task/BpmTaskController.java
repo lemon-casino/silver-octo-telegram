@@ -282,7 +282,13 @@ public class BpmTaskController {
     @Parameter(name = "taskId", description = "当前任务ID", required = true)
     @PreAuthorize("@ss.hasPermission('bpm:task:update')")
     public CommonResult<List<BpmTaskRespVO>> getTaskListByReturn(@RequestParam("id") String id) {
-        List<UserTask> userTaskList = bpmTaskService.getUserTaskListByReturn(id);
+        Long currentUserId = getLoginUserId();
+        Task task = bpmTaskService.getTask(id);
+        boolean managerial = false;
+        if (task != null) {
+            managerial = modelService.isUserProcessInstanceModelManager(currentUserId, task.getProcessInstanceId());
+        }
+        List<UserTask> userTaskList = bpmTaskService.getUserTaskListByReturn(id, managerial);
         return success(convertList(userTaskList, userTask -> // 只返回 id 和 name
                 new BpmTaskRespVO().setName(userTask.getName()).setTaskDefinitionKey(userTask.getId())));
     }

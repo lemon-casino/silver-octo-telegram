@@ -3,7 +3,6 @@ package cn.iocoder.yudao.module.bpm.service.definition;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.ObjUtil;
-import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.util.date.DateUtils;
 import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
@@ -705,8 +704,12 @@ public class BpmModelServiceImpl implements BpmModelService {
                     Set<Long> candidateUserIds = taskCandidateInvoker.calculateUsersByActivity(bpmnModel,
                             task.getTaskDefinitionKey(), startUserId, newDefinition.getId(), instance.getProcessVariables());
                     if (CollUtil.isNotEmpty(candidateUserIds)) {
-                        int index = RandomUtil.randomInt(candidateUserIds.size());
-                        Long assigneeUserId = CollUtil.get(candidateUserIds, index);
+                        Integer loopCounter = (Integer) task.getTaskLocalVariables().get("loopCounter");
+                        int index = 0;
+                        if (loopCounter != null && loopCounter < candidateUserIds.size()) {
+                            index = loopCounter;
+                        }
+                        Long assigneeUserId = CollUtil.get(new ArrayList<>(candidateUserIds), index);
                         taskService.setAssignee(task.getId(), String.valueOf(assigneeUserId));
                     } else {
                         taskService.setAssignee(task.getId(), null);
