@@ -1,9 +1,9 @@
 package cn.iocoder.yudao.module.bpm.framework.flowable.core.el;
 
+import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.VariableTypeUtils;
 import org.flowable.common.engine.api.variable.VariableContainer;
 import org.flowable.common.engine.impl.el.function.AbstractFlowableVariableExpressionFunction;
 import org.springframework.stereotype.Component;
-import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.VariableTypeUtils;
 
 /**
  * 根据流程变量 variable 的类型，转换参数的值
@@ -28,10 +28,18 @@ public class VariableConvertByTypeExpressionFunction extends AbstractFlowableVar
      * @return 转换后的值
      */
     public static Object convertByType(VariableContainer variableContainer, String variableName, Object paramValue) {
-        if (variableContainer == null || variableName == null || paramValue == null) {
+        try {
+            if (variableContainer == null || variableName == null || paramValue == null) {
+                return false;
+            }
+            Object variable = variableContainer.getVariable(variableName);
+            if (variable == null) {
+                return false;
+            }
+            return VariableTypeUtils.convertByType(variable, paramValue);
+        } catch (Exception ignored) {
+            // If any unexpected exception occurs, treat as not matched
             return false;
         }
-        Object variable = variableContainer.getVariable(variableName);
-        return VariableTypeUtils.convertByType(variable, paramValue);
     }
 }

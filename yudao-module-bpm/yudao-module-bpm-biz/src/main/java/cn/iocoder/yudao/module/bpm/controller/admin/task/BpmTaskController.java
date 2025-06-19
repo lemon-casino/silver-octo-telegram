@@ -345,6 +345,10 @@ public class BpmTaskController {
                     } else if (t.getDueDate() != null) {
                         wrapper.setDueTime(DateUtils.of(t.getDueDate()));
                     }
+                    Object notifyDate = t.getTaskLocalVariables().get(BpmnVariableConstants.TASK_VARIABLE_WORK_NOTIFY_DATE);
+                    if (notifyDate instanceof Long) {
+                        wrapper.setNotifyTime(DateUtils.of(new Date((Long) notifyDate)));
+                    }
                 }
             }
         }

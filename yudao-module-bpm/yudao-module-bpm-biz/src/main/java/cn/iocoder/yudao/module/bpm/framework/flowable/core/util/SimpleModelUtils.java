@@ -724,6 +724,8 @@ public class SimpleModelUtils {
                 List<String> list = CollectionUtils.convertList(item.getRules(), (rule) -> {
                     // 优化 rightSide 的处理
                     String rightSide = rule.getRightSide();
+                    System.out.println("--------》"+rule.getLeftSide() +"---->"+rule.getOpCode() +"---->"+rightSide);
+
                     if (NumberUtil.isNumber(rightSide)) {
                         // 如果是数值类型，直接使用数值（无需加引号）
                         rightSide = rightSide.trim();
@@ -731,21 +733,39 @@ public class SimpleModelUtils {
                         // 如果非数值类型，加引号
                         rightSide = "\"" + rightSide + "\"";
                     }
+                    System.out.println();
                     // 处理 contains 和 notContains 操作符
                     return switch (rule.getOpCode()) {
-                        case "contains" -> String.format("var:contains(%s, %s)", rule.getLeftSide(), rightSide);
-                        case "notContains" -> String.format("!var:contains(%s, %s)", rule.getLeftSide(), rightSide);
+                        case "contains" -> String.format("var:contains('%s', %s)", rule.getLeftSide(), rightSide);
+                        case "notContains" -> String.format("!var:contains('%s', %s)", rule.getLeftSide(), rightSide);
                         case "empty" ->
                             // 判断变量是否为空
-                                String.format("var:convertByType(%s, \"isEmpty\")", rule.getLeftSide());
+                                String.format("var:empty('%s')", rule.getLeftSide());
                         case "notEmpty" ->
                             // 判断变量是否有内容
-                                String.format("var:convertByType(%s, \"hasContent\")", rule.getLeftSide());
+                                String.format("var:isNotEmpty('%s')", rule.getLeftSide());
+                        case "==" ->
+                            // 使用var:equals函数安全地比较两个变量，避免变量不存在时抛出异常
+                                String.format("var:equals('%s', %s)", rule.getLeftSide(), rightSide);
+                        case "!=" ->
+                            // 使用var:notEquals函数安全地比较两个变量不相等
+                                String.format("var:notEquals('%s', %s)", rule.getLeftSide(), rightSide);
+                        case ">" ->
+                            // 使用var:gt函数安全地比较大于关系
+                                String.format("var:gt('%s', %s)", rule.getLeftSide(), rightSide);
+                        case ">=" ->
+                            // 使用var:gte函数安全地比较大于等于关系
+                                String.format("var:gte('%s', %s)", rule.getLeftSide(), rightSide);
+                        case "<" ->
+                            // 使用var:lt函数安全地比较小于关系
+                                String.format("var:lt('%s', %s)", rule.getLeftSide(), rightSide);
+                        case "<=" ->
+                            // 使用var:lte函数安全地比较小于等于关系
+                                String.format("var:lte('%s', %s)", rule.getLeftSide(), rightSide);
                         case null, default ->
-                            // 其他操作符使用原有转换逻辑
-                            // 优化：将 rightSide 直接传递给 convertByType
-                                String.format("%s %s var:convertByType(%s, %s)",
-                                        rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);
+                            // 其他操作符,先判断变量是否存在,不存在返回false
+                                String.format("var:exists('%s') && execution.getVariable('%s') %s var:convertByType('%s', %s)",
+                                        rule.getLeftSide(), rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);
                     };
                 });
                 // 构造条件组的表达式

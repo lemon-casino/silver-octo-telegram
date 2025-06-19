@@ -1039,11 +1039,33 @@ public class BpmnModelUtils {
         if (StrUtil.isEmpty(expression)) {
             return;
         }
+
+        // 去除字符串常量，避免解析其中的内容为变量名
+        String expressionWithoutStrings = expression.replaceAll("'[^']*'|\"[^\"]*\"", "");
         // 先解析出函数名，例如 var:convertByType()，避免被当成变量
         Set<String> functionNames = new HashSet<>();
-        Matcher funcMatcher = Pattern.compile("var:([A-Za-z_][A-Za-z0-9_]*)").matcher(expression);
+        Matcher funcMatcher = Pattern.compile("var:([A-Za-z_][A-Za-z0-9_]*)").matcher(expressionWithoutStrings);
         while (funcMatcher.find()) {
             functionNames.add(funcMatcher.group(1));
+        }
+
+        // 处理比较操作符两侧的变量，特别是直接使用的变量名（没有通过execution.getVariable获取的）
+        // 例如：(F8y4mbuii8dtqyc == var:convertByType(F8y4mbuii8dtqyc, "选中"))
+        Matcher directVarMatcher = Pattern.compile("\\(([A-Za-z_][A-Za-z0-9_]*)\\s*(?:==|!=|>|<|>=|<=)").matcher(expressionWithoutStrings);
+        while (directVarMatcher.find()) {
+            String varName = directVarMatcher.group(1);
+            if (!variables.containsKey(varName)) {
+                variables.put(varName, null);
+            }
+        }
+
+        // 处理函数参数中的未引用变量名，例如直接使用 F8y4mbuii8dtqyc 作为参数
+        Matcher funcParamMatcher = Pattern.compile("var:[A-Za-z_][A-Za-z0-9_]*\\(([A-Za-z_][A-Za-z0-9_]*)").matcher(expressionWithoutStrings);
+        while (funcParamMatcher.find()) {
+            String varName = funcParamMatcher.group(1);
+            if (!variables.containsKey(varName)) {
+                variables.put(varName, null);
+            }
         }
 
         // 使用正则解析形如 abc、abc_xyz 等变量名
@@ -1051,7 +1073,9 @@ public class BpmnModelUtils {
         while (matcher.find()) {
             String varName = matcher.group();
             // 跳过 flowable 内置关键字或函数名
-            if (variables.containsKey(varName) || "var".equals(varName) || functionNames.contains(varName)) {
+            if (variables.containsKey(varName) || "var".equals(varName) || "execution".equals(varName) || 
+                functionNames.contains(varName) || "true".equals(varName) || "false".equals(varName) ||
+                "null".equals(varName)) {
                 continue;
             }
             variables.put(varName, null);
@@ -1104,29 +1128,66 @@ public class BpmnModelUtils {
             return;
         }
 
+        // 去除字符串常量，避免解析其中的内容为变量名
+        String expressionWithoutStrings = expression.replaceAll("'[^']*'|\"[^\"]*\"", "");
+        
         // 提取表达式中使用到的函数名称，避免被当做变量
         Set<String> functionNames = new HashSet<>();
-        Matcher funcMatcher = Pattern.compile("var:([A-Za-z_][A-Za-z0-9_]*)").matcher(expression);
+        Matcher funcMatcher = Pattern.compile("var:([A-Za-z_][A-Za-z0-9_]*)").matcher(expressionWithoutStrings);
         while (funcMatcher.find()) {
             functionNames.add(funcMatcher.group(1));
         }
 
+        // 处理比较操作符两侧的变量，特别是直接使用的变量名（没有通过execution.getVariable获取的）
+        Matcher directVarMatcher = Pattern.compile("\\(([A-Za-z_][A-Za-z0-9_]*)\\s*(?:==|!=|>|<|>=|<=)").matcher(expressionWithoutStrings);
+        while (directVarMatcher.find()) {
+            String varName = directVarMatcher.group(1);
+            if (!variables.containsKey(varName) && formMap.containsKey(varName)) {
+                addVariableFromForm(variables, processMap, formMap, varName);
+            }
+        }
+
+        // 处理函数参数中的未引用变量名，例如直接使用 F8y4mbuii8dtqyc 作为参数
+        Matcher funcParamMatcher = Pattern.compile("var:[A-Za-z_][A-Za-z0-9_]*\\(([A-Za-z_][A-Za-z0-9_]*)").matcher(expressionWithoutStrings);
+        while (funcParamMatcher.find()) {
+            String varName = funcParamMatcher.group(1);
+            if (!variables.containsKey(varName) && formMap.containsKey(varName)) {
+                addVariableFromForm(variables, processMap, formMap, varName);
+            }
+        }
+
+        // 使用正则解析形如 abc、abc_xyz 等变量名
         Matcher matcher = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*").matcher(expression);
         while (matcher.find()) {
             String varName = matcher.group();
-            if (variables.containsKey(varName) || "var".equals(varName) || functionNames.contains(varName)) {
+            if (variables.containsKey(varName) || "var".equals(varName) || "execution".equals(varName) || 
+                functionNames.contains(varName) || "true".equals(varName) || "false".equals(varName) ||
+                "null".equals(varName)) {
                 continue;
             }
             if (formMap.containsKey(varName)) {
-                Object value = formMap.get(varName);
-                if (value instanceof Collection && ((Collection<?>) value).size() == 1) {
-                    value = ((Collection<?>) value).iterator().next();
-                }
-                variables.put(varName, value);
-                if (processMap != null && !processMap.containsKey(varName)) {
-                    processMap.put(varName, value);
-                }
+                addVariableFromForm(variables, processMap, formMap, varName);
             }
+        }
+    }
+
+    /**
+     * 从表单变量中添加变量到流程变量中
+     * 
+     * @param variables 流程变量
+     * @param processMap 流程变量Map
+     * @param formMap 表单变量Map
+     * @param varName 变量名
+     */
+    private static void addVariableFromForm(Map<String, Object> variables, Map<String, Object> processMap, 
+                                           Map<String, Object> formMap, String varName) {
+        Object value = formMap.get(varName);
+        if (value instanceof Collection && ((Collection<?>) value).size() == 1) {
+            value = ((Collection<?>) value).iterator().next();
+        }
+        variables.put(varName, value);
+        if (processMap != null && !processMap.containsKey(varName)) {
+            processMap.put(varName, value);
         }
     }
 

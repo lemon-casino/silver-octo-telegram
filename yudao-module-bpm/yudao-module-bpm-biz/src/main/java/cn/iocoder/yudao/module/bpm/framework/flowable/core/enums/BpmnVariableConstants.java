@@ -106,5 +106,14 @@ public class BpmnVariableConstants {
      * 秒形式，保存在任务的本地变量中。
      */
     public static final String TASK_VARIABLE_WORK_DUE_DATE = "WORK_DUE_DATE";
+    /**
+     * 任务变量 - 工作时间计算得到的通知时间戳
+     *
+     * <p>
+     * 与 {@link #TASK_VARIABLE_WORK_DUE_DATE} 类似，保存为 epoch millis 形式，
+     * 保存在任务的本地变量中
+     * </p>
+     */
+    public static final String TASK_VARIABLE_WORK_NOTIFY_DATE = "WORK_NOTIFY_DATE";
 
 }

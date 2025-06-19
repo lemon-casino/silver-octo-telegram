@@ -1595,6 +1595,18 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                         log.info("[processTaskCreated][taskId({}) 工作时间到期时间计算完成: {}({})]",
                                 task.getId(), workTimeDueTime.format(LOG_DATE_TIME_FORMATTER), dueTs);
                         // 验证工作时间配置
+                        // 计算并保存通知时间(时间戳)，默认在工作时长的80%
+                        long notifyMillis = Math.round(originalDuration.toMillis() * 0.8);
+                        Duration notifyDuration = Duration.ofMillis(notifyMillis);
+                        LocalDateTime notifyTime = workTimeService.calculateDueTime(createTime, notifyDuration, workTimeConfig.getType());
+                        if (notifyTime != null) {
+                            long notifyTs = notifyTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                            taskService.setVariableLocal(task.getId(), BpmnVariableConstants.TASK_VARIABLE_WORK_NOTIFY_DATE, notifyTs);
+                            log.info("[processTaskCreated][taskId({}) 工作时间通知时间计算完成: {}({})]",
+                                    task.getId(), notifyTime.format(LOG_DATE_TIME_FORMATTER), notifyTs);
+                        } else {
+                            log.warn("[processTaskCreated][taskId({}) 通知时间计算失败]", task.getId());
+                        }
                         String configInfo = BpmnModelUtils.validateAndLogWorkTimeConfig(userTaskElement, task.getId());
                         log.info("[processTaskCreated][{}]", configInfo);
                     } else {

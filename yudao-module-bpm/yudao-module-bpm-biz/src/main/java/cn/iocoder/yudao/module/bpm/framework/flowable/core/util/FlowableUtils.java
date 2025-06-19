@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.bpm.framework.flowable.core.util;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import cn.iocoder.yudao.framework.common.core.KeyValue;
@@ -216,13 +217,7 @@ public class FlowableUtils {
         }
 
         // 解析表单配置
-        Map<String, BpmFormFieldVO> formFieldsMap = new HashMap<>();
-        processDefinitionInfo.getFormFields().forEach(formFieldStr -> {
-            BpmFormFieldVO formField = JsonUtils.parseObject(formFieldStr, BpmFormFieldVO.class);
-            if (formField != null) {
-                formFieldsMap.put(formField.getField(), formField);
-            }
-        });
+        Map<String, BpmFormFieldVO> formFieldsMap = parseFormFieldsMap(processDefinitionInfo.getFormFields());
 
         // 情况一：当自定义了摘要
         if (ObjectUtil.isNotNull(processDefinitionInfo.getSummarySetting())
@@ -435,21 +430,96 @@ public class FlowableUtils {
             return null;
         }
 
-        Map<String, BpmFormFieldVO> formFieldsMap = new LinkedHashMap<>();
-        processDefinitionInfo.getFormFields().forEach(formFieldStr -> {
-            BpmFormFieldVO formField = JsonUtils.parseObject(formFieldStr, BpmFormFieldVO.class);
-            if (formField != null) {
-                formFieldsMap.put(formField.getField(), formField);
-            }
-        });
+        Map<String, BpmFormFieldVO> formFieldsMap = parseFormFieldsMap(processDefinitionInfo.getFormFields());
 
         return formFieldsMap.values().stream()
                 .map(bpmFormFieldVO -> {
                     String fieldKey = bpmFormFieldVO.getField();
-                    return Optional.ofNullable(fieldKey)
-                            .map(key -> new KeyValue<>(bpmFormFieldVO.getTitle(), Optional.ofNullable(processVariables.get(key)).map(Object::toString).orElse("")))
-                            .orElse(new KeyValue<>(bpmFormFieldVO.getTitle(), "")); // 不合法的键处理
+                    if (fieldKey == null) {
+                        return new KeyValue<>(bpmFormFieldVO.getTitle(), "");
+                    }
+                    Object value = processVariables.get(fieldKey);
+                    Object display = buildDisplayValue(value, formFieldsMap);
+                    String displayStr = display instanceof Collection || display instanceof Map
+                            ? JsonUtils.toJsonString(display)
+                            : Optional.ofNullable(display).map(Object::toString).orElse("");
+                    return new KeyValue<>(bpmFormFieldVO.getTitle(), displayStr);
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 构建展示用的表单值，解决子表单等复杂结构的展示问题
+     *
+     * @param value          表单值
+     * @param formFieldsMap   表单字段配置
+     * @return 转换后的展示对象
+     */
+    @SuppressWarnings("unchecked")
+    private static Object buildDisplayValue(Object value, Map<String, BpmFormFieldVO> formFieldsMap) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                String title = Optional.ofNullable(formFieldsMap.get(key)).map(BpmFormFieldVO::getTitle).orElse(key);
+                result.put(title, buildDisplayValue(entry.getValue(), formFieldsMap));
+            }
+            return result;
+        }
+        if (value instanceof Collection<?> collection) {
+            List<Object> list = new ArrayList<>();
+            for (Object item : collection) {
+                list.add(buildDisplayValue(item, formFieldsMap));
+            }
+            return list;
+        }
+        return value;
+    }
+
+    /**
+     * 解析流程定义中配置的表单字段，包括子表单的字段
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, BpmFormFieldVO> parseFormFieldsMap(List<String> formFields) {
+        Map<String, BpmFormFieldVO> map = new LinkedHashMap<>();
+        if (CollUtil.isEmpty(formFields)) {
+            return map;
+        }
+        for (String fieldStr : formFields) {
+            Object obj = JsonUtils.parseObject(fieldStr, Object.class);
+            if (obj instanceof Map<?, ?> m) {
+                collectFieldTitles((Map<String, Object>) m, map);
+            }
+        }
+        return map;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void collectFieldTitles(Map<String, Object> node, Map<String, BpmFormFieldVO> map) {
+        Object field = node.getOrDefault("field", node.get("vModel"));
+        Object title = node.getOrDefault("title", node.get("label"));
+        Object type = node.get("type");
+        if (field instanceof String && title instanceof String) {
+            if (!map.containsKey(field)) {
+                BpmFormFieldVO vo = new BpmFormFieldVO();
+                vo.setField((String) field);
+                vo.setTitle((String) title);
+                if (type != null) {
+                    vo.setType(type.toString());
+                }
+                map.put((String) field, vo);
+            }
+        }
+        for (Object value : node.values()) {
+            if (value instanceof Map<?, ?>) {
+                collectFieldTitles((Map<String, Object>) value, map);
+            } else if (value instanceof Collection<?> collection) {
+                for (Object item : collection) {
+                    if (item instanceof Map<?, ?> itemMap) {
+                        collectFieldTitles((Map<String, Object>) itemMap, map);
+                    }
+                }
+            }
+        }
     }
 }

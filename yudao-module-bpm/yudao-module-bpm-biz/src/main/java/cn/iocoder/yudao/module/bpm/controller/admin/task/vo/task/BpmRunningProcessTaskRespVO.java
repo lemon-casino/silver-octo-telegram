@@ -55,5 +55,7 @@ public class BpmRunningProcessTaskRespVO {
         private String taskId;
         @Schema(description = "任务超时时间")
         private LocalDateTime dueTime;
+        @Schema(description = "通知时间")
+        private LocalDateTime notifyTime;
     }
 }
