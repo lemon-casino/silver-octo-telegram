@@ -738,10 +738,25 @@ public class SimpleModelUtils {
                         case "notContains" -> String.format("!var:contains('%s', %s)", rule.getLeftSide(), rightSide);
                         case "empty" -> String.format("var:empty('%s')", rule.getLeftSide());
                         case "notEmpty" -> String.format("var:isNotEmpty('%s')", rule.getLeftSide());
-                        // 直接使用操作符，配合 convertByType 转换参数类型，解决数值比较始终为 false 的问题
-                        case "==", "!=", ">", ">=", "<", "<=" ->
-                                String.format("var:exists('%s') && execution.getVariable('%s') %s var:convertByType('%s', %s)",
-                                        rule.getLeftSide(), rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);
+                        // 使用内置函数配合 convertByType 进行安全的数值比较
+                        case "==" ->
+                                String.format("var:equals('%s', var:convertByType('%s', %s))",
+                                        rule.getLeftSide(), rule.getLeftSide(), rightSide);
+                        case "!=" ->
+                                String.format("var:notEquals('%s', var:convertByType('%s', %s))",
+                                        rule.getLeftSide(), rule.getLeftSide(), rightSide);
+                        case ">" ->
+                                String.format("var:gt('%s', var:convertByType('%s', %s))",
+                                        rule.getLeftSide(), rule.getLeftSide(), rightSide);
+                        case ">=" ->
+                                String.format("var:gte('%s', var:convertByType('%s', %s))",
+                                        rule.getLeftSide(), rule.getLeftSide(), rightSide);
+                        case "<" ->
+                                String.format("var:lt('%s', var:convertByType('%s', %s))",
+                                        rule.getLeftSide(), rule.getLeftSide(), rightSide);
+                        case "<=" ->
+                                String.format("var:lte('%s', var:convertByType('%s', %s))",
+                                        rule.getLeftSide(), rule.getLeftSide(), rightSide);
                         case null, default ->
                                 String.format("var:exists('%s') && execution.getVariable('%s') %s var:convertByType('%s', %s)",
                                         rule.getLeftSide(), rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);
