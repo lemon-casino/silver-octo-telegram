@@ -111,6 +111,10 @@ public class VariableTypeUtils {
                     return Short.parseShort(paramStr);
                 } else if (variableType instanceof Byte) {
                     return Byte.parseByte(paramStr);
+                } else if (variableType instanceof java.math.BigDecimal) {
+                    return new java.math.BigDecimal(paramStr);
+                } else if (variableType instanceof java.math.BigInteger) {
+                    return new java.math.BigInteger(paramStr);
                 }
             }
         } catch (NumberFormatException e) {
@@ -156,6 +160,7 @@ public class VariableTypeUtils {
             case String s -> StrUtil.isEmpty(s);
             case Collection<?> objects -> CollUtil.isEmpty(objects);
             case Map<?, ?> map -> map.isEmpty();
+            case Object[] array -> array.length == 0;
             default -> false;
         };
     }
