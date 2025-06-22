@@ -328,13 +328,15 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     public List<HistoricTaskInstance> getTaskListByProcessInstanceId(String processInstanceId, Boolean asc) {
         HistoricTaskInstanceQuery query = historyService.createHistoricTaskInstanceQuery()
                 .includeTaskLocalVariables()
-                .processInstanceId(processInstanceId)
-                .orderByHistoricTaskInstanceStartTime();
+                .processInstanceId(processInstanceId);
         if (Boolean.TRUE.equals(asc)) {
-            query.desc();
+            query.orderByHistoricTaskInstanceStartTime().asc()
+                    .orderByHistoricActivityInstanceId().asc();
         } else {
-            query.asc();
+            query.orderByHistoricTaskInstanceStartTime().desc()
+                    .orderByHistoricActivityInstanceId().asc();
         }
+
         return query.list();
     }
 
