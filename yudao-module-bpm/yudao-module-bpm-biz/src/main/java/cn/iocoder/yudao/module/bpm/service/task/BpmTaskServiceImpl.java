@@ -923,7 +923,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         if (CollUtil.isNotEmpty(reqVO.getVariables())) {
             variables = FlowableUtils.filterTaskFormVariable(reqVO.getVariables());
             // 处理表单变量，确保数值类型变量以字符串形式存储
-            variables = FlowableUtils.processFormVariables(variables);
+          //  variables = FlowableUtils.processFormVariables(variables);
             log.info("[approveTask][任务({}) 流程({}) 处理后的表单变量：{}]",
                     task.getId(), task.getProcessInstanceId(), variables);
             // 修改表单的值需要存储到 ProcessInstance 变量

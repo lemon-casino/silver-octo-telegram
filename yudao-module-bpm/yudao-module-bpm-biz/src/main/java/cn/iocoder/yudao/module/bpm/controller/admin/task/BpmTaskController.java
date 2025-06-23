@@ -217,13 +217,12 @@ public class BpmTaskController {
                 
             // 处理表单变量并更新流程实例
             Map<String, Object> origVars = new HashMap<>(variables);
-            variables = FlowableUtils.processFormVariables(variables);
+         //   variables = FlowableUtils.processFormVariables(variables);
             log.info("[wardenApproveTask][处理后的表单变量：{}]", variables);
             
             // 对比原始变量和处理后变量是否有差异
-            Map<String, Object> finalVariables = variables;
             origVars.forEach((key, value) -> {
-                Object processed = finalVariables.get(key);
+                Object processed = variables.get(key);
                 if (!Objects.equals(value, processed)) {
                     log.info("[wardenApproveTask][字段({})类型转换：{}({}) -> {}({})]", 
                             key, value, value != null ? value.getClass().getName() : "null", 

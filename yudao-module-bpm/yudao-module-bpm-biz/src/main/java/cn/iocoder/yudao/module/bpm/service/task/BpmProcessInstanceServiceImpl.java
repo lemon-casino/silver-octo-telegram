@@ -748,7 +748,7 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
         FlowableUtils.filterProcessInstanceFormVariable(variables); // 过滤一下，避免 ProcessInstance 系统级的变量被占用
         // 处理表单变量，确保数值类型变量以字符串形式存储
         Map<String, Object> oldVariables = new HashMap<>(variables);
-        variables = FlowableUtils.processFormVariables(variables);
+      //  variables = FlowableUtils.processFormVariables(variables);
         if (!variables.equals(oldVariables)) {
             log.info("[createProcessInstance0][流程变量处理前后对比：处理前={}, 处理后={}]", oldVariables, variables);
         }
