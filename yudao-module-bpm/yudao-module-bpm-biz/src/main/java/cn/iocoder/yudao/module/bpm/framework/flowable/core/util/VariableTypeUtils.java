@@ -39,7 +39,7 @@ public class VariableTypeUtils {
         // 如果变量是列表类型，获取列表的第一个元素作为类型
         if (variable instanceof List<?> list) {
             if (!CollUtil.isEmpty(list)) {
-                Object firstElement = list.get(0);
+                Object firstElement = list.getFirst();
                 return convertParamValueByType(firstElement, paramValue);
             }
         } else {
@@ -61,29 +61,19 @@ public class VariableTypeUtils {
             return paramValue;
         }
         // 如果变量是数值类型，将参数值转换为对应的数值类型
-        if (variableType instanceof Number) {
-            return convertNumberParamValue(variableType, paramValue);
-        }
-        // 如果变量是布尔类型，将参数值转换为布尔值
-        else if (variableType instanceof Boolean) {
-            return Boolean.parseBoolean(paramValue.toString());
-        }
-        // 如果变量是字符串类型，尝试将其转换为数值类型
-        else if (variableType instanceof String variableTypeStr) {
-            // 如果变量值本身是数值类型的字符串（如 "501" 或 "501.5"），则将 paramValue 转换为对应的数值类型
-            if (NumberUtil.isNumber(variableTypeStr)) {
-                // 根据变量值是否为小数，决定转换为 Double 或 Integer
-                if (variableTypeStr.contains(".")) {
-                    return convertNumberParamValue(Double.parseDouble(variableTypeStr), paramValue);
-                } else {
-                    return convertNumberParamValue(Integer.parseInt(variableTypeStr), paramValue);
-                }
-            }
+        return switch (variableType) {
+            case Number number -> convertNumberParamValue(variableType, paramValue);
+
+            // 如果变量是布尔类型，将参数值转换为布尔值
+            case Boolean b -> Boolean.parseBoolean(paramValue.toString());
+
             // 如果变量值不是数值类型的字符串，返回字符串形式
-            return paramValue.toString();
-        }
-        // 其他类型直接返回原值
-        return paramValue;
+            // 如果变量是字符串类型，统一转换为字符串
+            case String s -> paramValue.toString();
+            default ->
+                // 其他类型直接返回原值
+                    paramValue;
+        };
     }
 
     /**
@@ -111,6 +101,10 @@ public class VariableTypeUtils {
                     return Short.parseShort(paramStr);
                 } else if (variableType instanceof Byte) {
                     return Byte.parseByte(paramStr);
+                } else if (variableType instanceof java.math.BigDecimal) {
+                    return new java.math.BigDecimal(paramStr);
+                } else if (variableType instanceof java.math.BigInteger) {
+                    return new java.math.BigInteger(paramStr);
                 }
             }
         } catch (NumberFormatException e) {
@@ -156,6 +150,7 @@ public class VariableTypeUtils {
             case String s -> StrUtil.isEmpty(s);
             case Collection<?> objects -> CollUtil.isEmpty(objects);
             case Map<?, ?> map -> map.isEmpty();
+            case Object[] array -> array.length == 0;
             default -> false;
         };
     }

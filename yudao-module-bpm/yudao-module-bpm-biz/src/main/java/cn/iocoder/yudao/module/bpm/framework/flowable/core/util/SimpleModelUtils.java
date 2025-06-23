@@ -400,7 +400,7 @@ public class SimpleModelUtils {
             boundaryEvent.setId("Event-" + IdUtil.fastUUID());
             boundaryEvent.setCancelActivity(false); // 设置关联的任务为不会被中断
             boundaryEvent.setAttachedToRef(userTask);
-            
+
             // 1.2 计算实际的超时时间 - 如果启用工作时间计算，需要动态计算触发时间
             String actualTimeDuration = timeoutHandler.getTimeDuration();
 
@@ -726,13 +726,7 @@ public class SimpleModelUtils {
                     String rightSide = rule.getRightSide();
                     System.out.println("--------》"+rule.getLeftSide() +"---->"+rule.getOpCode() +"---->"+rightSide);
 
-                    if (NumberUtil.isNumber(rightSide)) {
-                        // 如果是数值类型，直接使用数值（无需加引号）
-                        rightSide = rightSide.trim();
-                    } else {
-                        // 如果非数值类型，加引号
-                        rightSide = "\"" + rightSide + "\"";
-                    }
+                    rightSide = "\"" + rule.getRightSide() + "\"";
                     System.out.println();
                     // 处理 contains 和 notContains 操作符
                     return switch (rule.getOpCode()) {
