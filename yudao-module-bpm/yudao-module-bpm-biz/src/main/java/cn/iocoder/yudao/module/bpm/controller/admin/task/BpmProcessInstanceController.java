@@ -188,7 +188,7 @@ public class BpmProcessInstanceController {
     @Parameter(name = "processInstanceId", description = "流程实例的编号", required = true)
     @PreAuthorize("@ss.hasPermission('bpm:process-instance:query')")
     @SuppressWarnings("unchecked")
-    public CommonResult<BpmApprovalDetailRespVO> getApprovalDetail(@Valid  @ModelAttribute BpmApprovalDetailReqVO reqVO) {
+    public CommonResult<BpmApprovalDetailRespVO> getApprovalDetail(@Valid BpmApprovalDetailReqVO reqVO) {
         if (StrUtil.isNotEmpty(reqVO.getProcessVariablesStr())) {
             reqVO.setProcessVariables(JsonUtils.parseObject(reqVO.getProcessVariablesStr(), Map.class));
         }

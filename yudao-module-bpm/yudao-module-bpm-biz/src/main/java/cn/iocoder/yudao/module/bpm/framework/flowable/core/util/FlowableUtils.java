@@ -439,6 +439,7 @@ public class FlowableUtils {
                         return new KeyValue<>(bpmFormFieldVO.getTitle(), "");
                     }
                     Object value = processVariables.get(fieldKey);
+                    //判断是否是数组 并且内容是以key value 的方式存在 如果是 则解析key
                     Object display = buildDisplayValue(value, formFieldsMap);
                     String displayStr = display instanceof Collection || display instanceof Map
                             ? JsonUtils.toJsonString(display)

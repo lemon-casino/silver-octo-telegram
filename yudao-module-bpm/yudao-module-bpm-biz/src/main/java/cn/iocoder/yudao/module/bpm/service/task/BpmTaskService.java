@@ -308,4 +308,6 @@ public interface BpmTaskService {
     List<Task> getRunningTasksByProcessInstanceIds(Collection<String> processInstanceIds);
 
     void transferRunningTasks(Long loginUserId, @Valid BpmTaskTransferAllReqVO reqVO);
+
+    Object getVariableLocal(String taskId, String formFieldsPermissionVariable);
 }

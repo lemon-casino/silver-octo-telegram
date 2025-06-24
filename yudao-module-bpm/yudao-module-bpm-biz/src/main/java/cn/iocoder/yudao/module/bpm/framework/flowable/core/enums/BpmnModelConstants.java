@@ -96,7 +96,10 @@ public interface BpmnModelConstants {
      * BPMN ExtensionElement Attribute, 用于标记表单权限
      */
     String FORM_FIELD_PERMISSION_ELEMENT_PERMISSION_ATTRIBUTE = "permission";
-
+    /**
+     * Task LocalVariable：表单字段权限 JSON
+     */
+    String FORM_FIELDS_PERMISSION_VARIABLE = "formFieldsPermission";
     /**
      * BPMN ExtensionElement 操作按钮设置元素, 用于审批节点操作按钮设置
      */

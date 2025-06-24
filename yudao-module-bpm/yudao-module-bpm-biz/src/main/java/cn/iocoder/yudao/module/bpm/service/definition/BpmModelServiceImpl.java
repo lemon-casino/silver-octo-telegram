@@ -25,6 +25,7 @@ import cn.iocoder.yudao.module.bpm.enums.definition.BpmModelFormTypeEnum;
 import cn.iocoder.yudao.module.bpm.enums.definition.BpmModelTypeEnum;
 import cn.iocoder.yudao.module.bpm.enums.task.BpmReasonEnum;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.candidate.BpmTaskCandidateInvoker;
+import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnModelConstants;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.BpmnModelUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.SimpleModelUtils;
@@ -653,21 +654,6 @@ public class BpmModelServiceImpl implements BpmModelService {
         log.info("[updateHistoryModel][获取活跃的流程定义，definitionId({}) key({}) version({})]",
                 newDefinition.getId(), newDefinition.getKey(), newDefinition.getVersion());
 
-        // 1. 记录迁移前各流程实例当前任务的负责人和局部变量
-/*        List<Task> beforeTasks = taskService.createTaskQuery()
-                .processDefinitionId(processDefinitionId)
-                .includeTaskLocalVariables()
-                .active()
-                .list();
-        Map<String, TaskSnapshot> taskSnapshotMap = new HashMap<>();
-        for (Task task : beforeTasks) {
-            TaskSnapshot snap = new TaskSnapshot();
-            snap.assignee = task.getAssignee();
-            snap.owner = task.getOwner();
-            snap.localVariables = new HashMap<>(task.getTaskLocalVariables());
-            taskSnapshotMap.put(task.getProcessInstanceId() + ":" + task.getTaskDefinitionKey(), snap);
-        }*/
-
         // 迁移历史流程到新的版本
         try {
             // 使用 processMigrationService 创建迁移构建器，并映射相同 ID 的节点
@@ -714,6 +700,11 @@ public class BpmModelServiceImpl implements BpmModelService {
                     } else {
                         taskService.setAssignee(task.getId(), null);
                     }
+                    Map<String, String> perm = BpmnModelUtils.parseFormFieldsPermission(bpmnModel, task.getTaskDefinitionKey());
+                    if (CollUtil.isNotEmpty(perm)) {
+                        taskService.setVariableLocal(task.getId(), BpmnModelConstants.FORM_FIELDS_PERMISSION_VARIABLE,
+                                JsonUtils.toJsonString(perm));
+                    }
                 }
 
             }
@@ -723,15 +714,4 @@ public class BpmModelServiceImpl implements BpmModelService {
             throw e;
         }
     }
-/*
-    *//**
-     * 迁移任务快照
-     *//*
-    private static class TaskSnapshot {
-        String assignee;
-        String owner;
-        Map<String, Object> localVariables = new HashMap<>();
-    }*/
-
-
 }

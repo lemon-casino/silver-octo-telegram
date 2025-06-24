@@ -2030,6 +2030,11 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         }
     }
 
+    @Override
+    public Object getVariableLocal(String taskId, String variableName) {
+        return taskService.getVariableLocal(taskId, variableName);
+    }
+
     /**
      * 获得自身的代理对象，解决 AOP 生效问题
      *

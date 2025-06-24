@@ -213,8 +213,20 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
     }
 
     private Map<String, String> getFormFieldsPermission(BpmnModel bpmnModel,
-            String activityId, String taskId) {
-        // 1. 获取流程活动编号。流程活动 Id 为空事，从流程任务中获取流程活动 Id
+                                                        String activityId, String taskId) {
+        // 1. 优先从任务局部变量读取
+        if (StrUtil.isNotEmpty(taskId)) {
+            Object var = taskService.getVariableLocal(taskId,
+                    BpmnModelConstants.FORM_FIELDS_PERMISSION_VARIABLE);
+            if (var instanceof String) {
+                try {
+                    return JsonUtils.parseObject((String) var, Map.class);
+                } catch (Exception ignore) {
+                }
+            }
+        }
+
+        // 2. 获取流程活动编号。流程活动 Id 为空事，从流程任务中获取
         if (StrUtil.isEmpty(activityId) && StrUtil.isNotEmpty(taskId)) {
             activityId = Optional.ofNullable(taskService.getHistoricTask(taskId))
                     .map(HistoricTaskInstance::getTaskDefinitionKey).orElse(null);
@@ -223,9 +235,10 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
             return null;
         }
 
-        // 2. 从 BpmnModel 中解析表单字段权限
+        // 3. 从 BpmnModel 中解析表单字段权限
         return BpmnModelUtils.parseFormFieldsPermission(bpmnModel, activityId);
     }
+
 
     @Override
     public BpmApprovalDetailRespVO getApprovalDetail(Long loginUserId, BpmApprovalDetailReqVO reqVO) {
@@ -391,6 +404,7 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
         // 2. 表单权限
         String taskId = reqVO.getTaskId() == null && todoTask != null ? todoTask.getId() : reqVO.getTaskId();
         Map<String, String> formFieldsPermission = getFormFieldsPermission(bpmnModel, reqVO.getActivityId(), taskId);
+        System.out.println("表单权限--->"+formFieldsPermission);
         // 3. 拼接数据
         return BpmProcessInstanceConvert.INSTANCE.buildApprovalDetail(bpmnModel, processDefinition,
                 processDefinitionInfo, processInstance,
