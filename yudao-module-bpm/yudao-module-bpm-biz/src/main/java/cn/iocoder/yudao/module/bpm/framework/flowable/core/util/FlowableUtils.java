@@ -460,6 +460,10 @@ public class FlowableUtils {
     private static Object buildDisplayValue(Object value, Map<String, BpmFormFieldVO> formFieldsMap, String fieldKey) {
         BpmFormFieldVO fieldVO = fieldKey != null ? formFieldsMap.get(fieldKey) : null;
 
+        if (value instanceof String str && JsonUtils.isJson(str)) {
+            value = JsonUtils.parseObject(str, Object.class);
+        }
+
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> result = new LinkedHashMap<>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
