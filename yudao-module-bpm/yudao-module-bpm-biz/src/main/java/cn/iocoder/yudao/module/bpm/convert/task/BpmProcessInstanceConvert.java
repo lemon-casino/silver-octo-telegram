@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.bpm.convert.task;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.common.core.KeyValue;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.collection.MapUtils;
 import cn.iocoder.yudao.framework.common.util.collection.SetUtils;
@@ -88,7 +89,7 @@ public interface BpmProcessInstanceConvert {
             respVO.setFormVariables(pageResult.getList().get(i).getProcessVariables());
             Map<String, Object> variables = pageResult.getList().get(i).getProcessVariables();
             respVO.setFormVariables(variables);
-            respVO.setFormVariablesDisplay(FlowableUtils.getSummaryAll(
+            respVO.setFormVariablesDisplay((List<KeyValue<String, ?>>) FlowableUtils.getSummaryAll(
                     processDefinitionInfoMap.get(respVO.getProcessDefinitionId()), variables));
         }
         return vpPageResult;
@@ -102,7 +103,7 @@ public interface BpmProcessInstanceConvert {
         BpmProcessInstanceRespVO respVO = BeanUtils.toBean(processInstance, BpmProcessInstanceRespVO.class);
         respVO.setStatus(FlowableUtils.getProcessInstanceStatus(processInstance))
                 .setFormVariables(FlowableUtils.getProcessInstanceFormVariable(processInstance))
-                .setFormVariablesDisplay(FlowableUtils.getSummaryAll(processDefinitionInfo,
+                .setFormVariablesDisplay((List<KeyValue<String, ?>>) FlowableUtils.getSummaryAll(processDefinitionInfo,
                         processInstance.getProcessVariables()));;
         // definition
         respVO.setProcessDefinition(BeanUtils.toBean(processDefinition, BpmProcessDefinitionRespVO.class));

@@ -21,7 +21,7 @@ public class BpmProcessInstanceRespVO {
     private String name;
 
     @Schema(description = "流程摘要")
-    private List<KeyValue<String, String>> summary; // 只有流程表单，才有摘要！
+    private List<KeyValue<String, ?>> summary; // 只有流程表单，才有摘要！
 
     @Schema(description = "流程分类", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     private String category;
@@ -43,7 +43,7 @@ public class BpmProcessInstanceRespVO {
     @Schema(description = "提交的表单值", requiredMode = Schema.RequiredMode.REQUIRED)
     private Map<String, Object> formVariables;
     @Schema(description = "提交的表单值（表单项名称对应）")
-    private List<KeyValue<String, String>> formVariablesDisplay;
+    private List<KeyValue<String, ?>> formVariablesDisplay;
 
     @Schema(description = "业务的唯一标识-例如说，请假申请的编号", example = "1")
     private String businessKey;

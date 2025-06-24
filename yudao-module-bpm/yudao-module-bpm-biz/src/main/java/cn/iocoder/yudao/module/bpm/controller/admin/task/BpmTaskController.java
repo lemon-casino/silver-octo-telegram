@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.bpm.controller.admin.task;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.common.core.KeyValue;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.date.DateUtils;
@@ -137,7 +138,7 @@ public class BpmTaskController {
             }
             HistoricProcessInstance hpi = processInstanceMap.get(taskVO.getProcessInstanceId());
             if (hpi != null) {
-                pi.setSummary(FlowableUtils.getSummaryAll(processDefinitionInfoMap.get(pi.getProcessDefinitionId()), hpi.getProcessVariables()));
+                pi.setSummary((List<KeyValue<String, ?>>) FlowableUtils.getSummaryAll(processDefinitionInfoMap.get(pi.getProcessDefinitionId()), hpi.getProcessVariables()));
             }
         });
         return success(respPage);

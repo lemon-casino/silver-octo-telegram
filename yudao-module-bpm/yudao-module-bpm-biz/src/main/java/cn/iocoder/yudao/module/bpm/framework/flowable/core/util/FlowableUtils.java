@@ -12,6 +12,8 @@ import cn.iocoder.yudao.module.bpm.controller.admin.definition.vo.form.BpmFormFi
 import cn.iocoder.yudao.module.bpm.dal.dataobject.definition.BpmProcessDefinitionInfoDO;
 import cn.iocoder.yudao.module.bpm.enums.definition.BpmModelFormTypeEnum;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.enums.BpmnVariableConstants;
+import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
+import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
 import lombok.SneakyThrows;
 import org.flowable.common.engine.api.delegate.Expression;
 import org.flowable.common.engine.api.variable.VariableContainer;
@@ -200,7 +202,7 @@ public class FlowableUtils {
 
     /**
      * 获得流程实例的摘要
-     *
+     * <p>
      * 仅有 {@link BpmModelFormTypeEnum#getType()} 表单，才有摘要。
      * 原因是，只有它才有表单项的配置，从而可以根据配置，展示摘要。
      *
@@ -208,8 +210,8 @@ public class FlowableUtils {
      * @param processVariables      流程实例的 variables
      * @return 摘要
      */
-    public static List<KeyValue<String, String>> getSummary(BpmProcessDefinitionInfoDO processDefinitionInfo,
-                                                            Map<String, Object> processVariables) {
+    public static List<KeyValue<String, ?>> getSummary(BpmProcessDefinitionInfoDO processDefinitionInfo,
+                                                       Map<String, Object> processVariables) {
         // 只有流程表单才会显示摘要！
         if (ObjectUtil.isNull(processDefinitionInfo)
                 || !BpmModelFormTypeEnum.NORMAL.getType().equals(processDefinitionInfo.getFormType())) {
@@ -226,8 +228,8 @@ public class FlowableUtils {
                 BpmFormFieldVO formField = formFieldsMap.get(item);
                 if (formField != null) {
                     Object value = processVariables.get(item);
-                    return new KeyValue<String, String>(formField.getTitle(),
-                            value != null ? value.toString() : "");
+                    Object display = buildDisplayValue(value, formFieldsMap, item);
+                    return new KeyValue<String, Object>(formField.getTitle(), display);
                 }
                 return null;
             });
@@ -238,9 +240,10 @@ public class FlowableUtils {
                 .limit(3)
                 .map(entry -> {
                     Object value = processVariables.getOrDefault(entry.getValue().getField(), "");
+                    Object display = buildDisplayValue(value, formFieldsMap, entry.getValue().getField());
                     return new KeyValue<>(
                             entry.getValue().getTitle(),
-                            value != null ? value.toString() : ""
+                            display
                     );
                 })
                 .collect(Collectors.toList());
@@ -415,7 +418,7 @@ public class FlowableUtils {
 
     /**
      * 获得流程实例的所有摘要字段
-     *
+     * <p>
      * 仅有 {@link BpmModelFormTypeEnum#NORMAL} 表单，才有摘要。
      * 返回所有表单字段对应的摘要内容
      *
@@ -423,7 +426,7 @@ public class FlowableUtils {
      * @param processVariables      流程实例的 variables
      * @return 全部摘要字段
      */
-    public static List<KeyValue<String, String>> getSummaryAll(BpmProcessDefinitionInfoDO processDefinitionInfo,
+    public static Collection<KeyValue<String,?>> getSummaryAll(BpmProcessDefinitionInfoDO processDefinitionInfo,
                                                                Map<String, Object> processVariables) {
         if (ObjectUtil.isNull(processDefinitionInfo)
                 || !BpmModelFormTypeEnum.NORMAL.getType().equals(processDefinitionInfo.getFormType())) {
@@ -432,19 +435,21 @@ public class FlowableUtils {
 
         Map<String, BpmFormFieldVO> formFieldsMap = parseFormFieldsMap(processDefinitionInfo.getFormFields());
 
-        return formFieldsMap.values().stream()
+        return  formFieldsMap.values().stream()
                 .map(bpmFormFieldVO -> {
                     String fieldKey = bpmFormFieldVO.getField();
                     if (fieldKey == null) {
                         return new KeyValue<>(bpmFormFieldVO.getTitle(), "");
                     }
                     Object value = processVariables.get(fieldKey);
-                    //判断是否是数组 并且内容是以key value 的方式存在 如果是 则解析key
-                    Object display = buildDisplayValue(value, formFieldsMap);
-                    String displayStr = display instanceof Collection || display instanceof Map
-                            ? JsonUtils.toJsonString(display)
-                            : Optional.ofNullable(display).map(Object::toString).orElse("");
-                    return new KeyValue<>(bpmFormFieldVO.getTitle(), displayStr);
+                    // 判断是否是数组 并且内容是以key value 的方式存在 如果是 则解析 key
+                    System.out.println("========");
+                    System.out.println("========"+value);
+                    System.out.println("========"+formFieldsMap);
+                    System.out.println("========"+fieldKey);
+                    System.out.println("========");
+                    Object display = buildDisplayValue(value, formFieldsMap, fieldKey);
+                    return new KeyValue<>(bpmFormFieldVO.getTitle(), display);
                 })
                 .collect(Collectors.toList());
     }
@@ -457,23 +462,43 @@ public class FlowableUtils {
      * @return 转换后的展示对象
      */
     @SuppressWarnings("unchecked")
-    private static Object buildDisplayValue(Object value, Map<String, BpmFormFieldVO> formFieldsMap) {
+    private static Object buildDisplayValue(Object value, Map<String, BpmFormFieldVO> formFieldsMap, String fieldKey) {
+        BpmFormFieldVO fieldVO = fieldKey != null ? formFieldsMap.get(fieldKey) : null;
+
+        if (value instanceof String str && JsonUtils.isJson(str)) {
+            value = JsonUtils.parseObject(str, Object.class);
+        }
+
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> result = new LinkedHashMap<>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 String key = String.valueOf(entry.getKey());
-                String title = Optional.ofNullable(formFieldsMap.get(key)).map(BpmFormFieldVO::getTitle).orElse(key);
-                result.put(title, buildDisplayValue(entry.getValue(), formFieldsMap));
+                BpmFormFieldVO childVO = formFieldsMap.get(key);
+                String title = Optional.ofNullable(childVO).map(BpmFormFieldVO::getTitle).orElse(key);
+                result.put(title, buildDisplayValue(entry.getValue(), formFieldsMap, key));
             }
             return result;
         }
+
         if (value instanceof Collection<?> collection) {
             List<Object> list = new ArrayList<>();
             for (Object item : collection) {
-                list.add(buildDisplayValue(item, formFieldsMap));
+                list.add(buildDisplayValue(item, formFieldsMap, fieldKey));
             }
             return list;
         }
+
+        if (fieldVO != null && "UserSelect".equalsIgnoreCase(fieldVO.getType())) {
+            AdminUserApi adminUserApi = SpringUtil.getBean(AdminUserApi.class);
+            Long userId = NumberUtils.parseLong(String.valueOf(value));
+            if (userId != null) {
+                AdminUserRespDTO user = adminUserApi.getUser(userId);
+                if (user != null) {
+                    return user.getNickname();
+                }
+            }
+        }
+
         return value;
     }
 
@@ -498,6 +523,9 @@ public class FlowableUtils {
     @SuppressWarnings("unchecked")
     private static void collectFieldTitles(Map<String, Object> node, Map<String, BpmFormFieldVO> map) {
         Object field = node.getOrDefault("field", node.get("vModel"));
+        if (field == null) {
+            field = node.get("prop");
+        }
         Object title = node.getOrDefault("title", node.get("label"));
         Object type = node.get("type");
         if (field instanceof String && title instanceof String) {

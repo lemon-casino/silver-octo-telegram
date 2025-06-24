@@ -105,7 +105,7 @@ public class BpmTaskRespVO {
         private String processDefinitionId;
 
         @Schema(description = "流程摘要", example = "[]")
-        private List<KeyValue<String, String>> summary; // 只有流程表单，才有摘要！
+        private List<KeyValue<String, ?>> summary; // 只有流程表单，才有摘要！
 
         /**
          * 发起人的用户信息
