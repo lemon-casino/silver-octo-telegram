@@ -514,6 +514,9 @@ public class FlowableUtils {
     @SuppressWarnings("unchecked")
     private static void collectFieldTitles(Map<String, Object> node, Map<String, BpmFormFieldVO> map) {
         Object field = node.getOrDefault("field", node.get("vModel"));
+        if (field == null) {
+            field = node.get("prop");
+        }
         Object title = node.getOrDefault("title", node.get("label"));
         Object type = node.get("type");
         if (field instanceof String && title instanceof String) {
