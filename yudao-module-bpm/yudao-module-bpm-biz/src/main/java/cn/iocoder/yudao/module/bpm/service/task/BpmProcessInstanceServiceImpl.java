@@ -714,10 +714,9 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
         ProcessDefinition definition = processDefinitionService
                 .getProcessDefinition(createReqVO.getProcessDefinitionId());
         // 发起流程
-        return FlowableUtils.executeAuthenticatedUserId(userId, () -> {
-            return createProcessInstance0(userId, definition, createReqVO.getVariables(), null,
-                    createReqVO.getStartUserSelectAssignees());
-        });
+        System.out.println("嘿嘿嘿-->"+createReqVO);
+        return FlowableUtils.executeAuthenticatedUserId(userId, () -> createProcessInstance0(userId, definition, createReqVO.getVariables(), null,
+                createReqVO.getStartUserSelectAssignees()));
     }
 
     @Override
@@ -736,6 +735,7 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
     private String createProcessInstance0(Long userId, ProcessDefinition definition,
             Map<String, Object> variables, String businessKey,
             Map<String, List<Long>> startUserSelectAssignees) {
+        System.out.println("来到这里-variables->"+variables);
         // 1.1 校验流程定义
         if (definition == null) {
             throw exception(PROCESS_DEFINITION_NOT_EXISTS);
@@ -752,17 +752,18 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
         if (!processDefinitionService.canUserStartProcessDefinition(processDefinitionInfo, userId)) {
             throw exception(PROCESS_INSTANCE_START_USER_CAN_START);
         }
+        System.out.println("xxxx"+variables);
         // 1.3 校验发起人自选审批人
         validateStartUserSelectAssignees(userId, definition, startUserSelectAssignees, variables);
-
+        System.out.println("xxxx>>>>>"+variables);
         // 2. 创建流程实例
         if (variables == null) {
             variables = new HashMap<>();
         }
+        System.out.println("variables---->"+variables);
         FlowableUtils.filterProcessInstanceFormVariable(variables); // 过滤一下，避免 ProcessInstance 系统级的变量被占用
         // 处理表单变量，确保数值类型变量以字符串形式存储
         Map<String, Object> oldVariables = new HashMap<>(variables);
-      //  variables = FlowableUtils.processFormVariables(variables);
         if (!variables.equals(oldVariables)) {
             log.info("[createProcessInstance0][流程变量处理前后对比：处理前={}, 处理后={}]", oldVariables, variables);
         }
@@ -813,9 +814,17 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
                                                   Map<String, List<Long>> startUserSelectAssignees,
                                                   Map<String,Object> variables) {
         // 1. 获取预测的节点信息
+        // 创建variables的深拷贝，避免原始变量被修改
+        Map<String, Object> variablesCopy = new HashMap<>();
+        if (variables != null) {
+            variables.forEach((key, value) -> {
+                variablesCopy.put(key, deepCopy(value));
+            });
+        }
+        
         BpmApprovalDetailRespVO detailRespVO = getApprovalDetail(userId, new BpmApprovalDetailReqVO()
                 .setProcessDefinitionId(definition.getId())
-                .setProcessVariables(variables));
+                .setProcessVariables(variablesCopy));
         List<ActivityNode> activityNodes = detailRespVO.getActivityNodes();
         if (CollUtil.isEmpty(activityNodes)){
             return;
@@ -837,6 +846,64 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
                 }
             });
         });
+    }
+
+    /**
+     * 对象深拷贝，处理集合、Map等复杂数据结构
+     *
+     * @param value 需要深拷贝的对象
+     * @return 深拷贝后的对象
+     */
+    @SuppressWarnings("unchecked")
+    private Object deepCopy(Object value) {
+        if (value == null) {
+            return null;
+        }
+        
+        if (value instanceof Collection) {
+            Collection<?> collection = (Collection<?>) value;
+            Collection<Object> result;
+            
+            if (value instanceof List) {
+                result = new ArrayList<>(collection.size());
+            } else if (value instanceof Set) {
+                result = new HashSet<>(Math.max((int) (collection.size()/.75f) + 1, 16));
+            } else {
+                // 其他集合类型，尝试使用原集合类型
+                try {
+                    result = collection.getClass().getDeclaredConstructor().newInstance();
+                } catch (Exception e) {
+                    // 如果无法实例化，则使用ArrayList作为默认实现
+                    result = new ArrayList<>(collection.size());
+                }
+            }
+            
+            for (Object item : collection) {
+                result.add(deepCopy(item));
+            }
+            return result;
+        } else if (value instanceof Map) {
+            Map<Object, Object> map = (Map<Object, Object>) value;
+            Map<Object, Object> result = new HashMap<>(Math.max((int) (map.size()/.75f) + 1, 16));
+            
+            for (Map.Entry<Object, Object> entry : map.entrySet()) {
+                result.put(deepCopy(entry.getKey()), deepCopy(entry.getValue()));
+            }
+            return result;
+        } else if (value instanceof Number || value instanceof String || value instanceof Boolean || value instanceof Character) {
+            // 基本类型及其包装类型和String不需要深拷贝
+            return value;
+        } else {
+            // 其他类型，尝试使用JSON序列化方式进行深拷贝
+            // 注意：这种方式可能不适用于所有对象，特别是包含循环引用的对象
+            try {
+                String json = JsonUtils.toJsonString(value);
+                return JsonUtils.parseObject(json, Object.class);
+            } catch (Exception e) {
+                // 如果JSON序列化失败，则返回原对象
+                return value;
+            }
+        }
     }
 
     @Override
