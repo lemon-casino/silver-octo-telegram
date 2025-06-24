@@ -714,7 +714,6 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
         ProcessDefinition definition = processDefinitionService
                 .getProcessDefinition(createReqVO.getProcessDefinitionId());
         // 发起流程
-        System.out.println("嘿嘿嘿-->"+createReqVO);
         return FlowableUtils.executeAuthenticatedUserId(userId, () -> createProcessInstance0(userId, definition, createReqVO.getVariables(), null,
                 createReqVO.getStartUserSelectAssignees()));
     }
@@ -735,7 +734,6 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
     private String createProcessInstance0(Long userId, ProcessDefinition definition,
             Map<String, Object> variables, String businessKey,
             Map<String, List<Long>> startUserSelectAssignees) {
-        System.out.println("来到这里-variables->"+variables);
         // 1.1 校验流程定义
         if (definition == null) {
             throw exception(PROCESS_DEFINITION_NOT_EXISTS);

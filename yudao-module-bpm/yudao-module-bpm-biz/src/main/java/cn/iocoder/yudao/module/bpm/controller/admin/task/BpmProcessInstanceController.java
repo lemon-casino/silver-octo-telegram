@@ -138,8 +138,6 @@ public class BpmProcessInstanceController {
         Long userId = (createReqVO.getRefreshToken() != null && !createReqVO.getRefreshToken().isEmpty())
                 ? Long.valueOf(Long.parseLong(createReqVO.getRefreshToken()))
                 : getLoginUserId();
-        System.out.println("!!!!!!"+createReqVO);
-        System.out.println("?????"+createReqVO);
         return success(processInstanceService.createProcessInstance(userId, createReqVO));
     }
 
