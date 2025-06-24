@@ -44,6 +44,6 @@ public class BpmProcessInstanceCopyRespVO {
     @Schema(description = "流程实例的状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     private Integer status;
     @Schema(description = "流程摘要", example = "[]")
-    private List<KeyValue<String, String>> summary;
+    private List<KeyValue<String, Object>> summary;
 
 }
