@@ -35,6 +35,7 @@ import cn.iocoder.yudao.module.bpm.framework.flowable.core.event.BpmProcessInsta
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.BpmnModelUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.FlowableUtils;
 import cn.iocoder.yudao.module.bpm.framework.flowable.core.util.SimpleModelUtils;
+import cn.iocoder.yudao.module.bpm.service.definition.BpmModelService;
 import cn.iocoder.yudao.module.bpm.service.definition.BpmProcessDefinitionService;
 import cn.iocoder.yudao.module.bpm.service.message.BpmMessageService;
 import cn.iocoder.yudao.module.system.api.dept.DeptApi;
@@ -122,6 +123,11 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
     private BpmProcessIdRedisDAO processIdRedisDAO;
     @Resource
     private BpmProcessDefinitionInfoMapper processDefinitionInfoMapper;
+
+    @Resource
+    private BpmModelService modelService;
+    @Resource
+    private BpmProcessInstanceCopyService processInstanceCopyService;
 
     // ========== Query 查询相关方法 ==========
 
@@ -1197,6 +1203,33 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
         
         // 3. 返回结果
         return new BpmProcessInstanceStatsRespVO(runningCount, approveCount, rejectCount, cancelCount);
+    }
+
+    @Override
+    public void deleteProcessInstance(Long userId, String processInstanceId) {
+        // 1.1 查询流程实例
+        ProcessInstance processInstance = getProcessInstance(processInstanceId);
+        HistoricProcessInstance historicProcessInstance = null;
+        if (processInstance == null) {
+            // 可能流程已经结束，查询历史数据
+            historicProcessInstance = getHistoricProcessInstance(processInstanceId);
+            // 如果历史流程实例也不存在，直接返回，无需抛出异常
+            if (historicProcessInstance == null) {
+                return;
+            }
+        }
+        
+        // 2.1 如果流程实例还在运行，先删除运行中的流程实例
+        if (processInstance != null) {
+            // 获取用户信息
+            AdminUserRespDTO user = adminUserApi.getUser(userId);
+            runtimeService.deleteProcessInstance(processInstanceId, 
+                    BpmReasonEnum.CANCEL_PROCESS_INSTANCE_BY_ADMIN.format(user.getNickname(), "管理员删除"));
+        }
+        // 2.2 删除历史流程实例
+        historyService.deleteHistoricProcessInstance(processInstanceId);
+        // 2.3 删除流程抄送记录
+        processInstanceCopyService.deleteProcessInstanceCopy(processInstanceId);
     }
 
 }

@@ -209,4 +209,13 @@ public class BpmProcessInstanceController {
         return success(processInstanceService.getProcessInstanceStats(getLoginUserId()));
     }
 
+    @DeleteMapping("/delete")
+    @Operation(summary = "删除流程实例", description = "管理员删除流程实例")
+    @Parameter(name = "processInstanceId", description = "流程实例的编号", required = true)
+    @PreAuthorize("@ss.hasPermission('bpm:process-instance:delete')")
+    public CommonResult<Boolean> deleteProcessInstance(@RequestParam("id") String id) {
+        processInstanceService.deleteProcessInstance(getLoginUserId(), id);
+        return success(true);
+    }
+
 }

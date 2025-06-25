@@ -24,7 +24,7 @@
 			"hostGroup":[
 				{
 					"env":"local",
-					"url":"http://localhost:8080"
+					"url":"http://localhost:8080/admin-api"
 				}
 			],
 			"name":"yudao-module-bpm-biz"

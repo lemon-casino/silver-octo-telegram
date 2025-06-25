@@ -190,4 +190,12 @@ public interface BpmProcessInstanceService {
      * @return 运行中的流程实例列表，如果 ID 为空则返回所有运行中的流程实例
      */
     List<HistoricProcessInstance> getRunningProcessInstanceList(String id);
+
+    /**
+     * 删除流程实例
+     *
+     * @param userId 用户编号
+     * @param processInstanceId 流程实例的编号
+     */
+    void deleteProcessInstance(Long userId, String processInstanceId);
 }
