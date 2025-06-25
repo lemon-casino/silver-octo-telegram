@@ -738,28 +738,13 @@ public class SimpleModelUtils {
                         case "notEmpty" ->
                             // 判断变量是否有内容
                                 String.format("var:isNotEmpty('%s')", rule.getLeftSide());
-                        case "==" ->
-                            // 使用var:equals函数安全地比较两个变量，避免变量不存在时抛出异常
-                                String.format("var:equals('%s', %s)", rule.getLeftSide(), rightSide);
-                        case "!=" ->
-                            // 使用var:notEquals函数安全地比较两个变量不相等
-                                String.format("var:notEquals('%s', %s)", rule.getLeftSide(), rightSide);
-                        case ">" ->
-                            // 使用var:gt函数安全地比较大于关系
-                                String.format("var:gt('%s', %s)", rule.getLeftSide(), rightSide);
-                        case ">=" ->
-                            // 使用var:gte函数安全地比较大于等于关系
-                                String.format("var:gte('%s', %s)", rule.getLeftSide(), rightSide);
-                        case "<" ->
-                            // 使用var:lt函数安全地比较小于关系
-                                String.format("var:lt('%s', %s)", rule.getLeftSide(), rightSide);
-                        case "<=" ->
-                            // 使用var:lte函数安全地比较小于等于关系
-                                String.format("var:lte('%s', %s)", rule.getLeftSide(), rightSide);
                         case null, default ->
                             // 其他操作符,先判断变量是否存在,不存在返回false
-                                String.format("var:exists('%s') && execution.getVariable('%s') %s var:convertByType('%s', %s)",
-                                        rule.getLeftSide(), rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);
+                           /*     String.format("var:exists('%s') && execution.getVariable('%s') %s var:convertByType('%s', %s)",
+                                        rule.getLeftSide(), rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);*/
+
+                                String.format("var:exists('%s') && %s %s var:convertByType(%s, %s)",
+                                        rule.getLeftSide(),  rule.getLeftSide(), rule.getOpCode(), rule.getLeftSide(), rightSide);
                     };
                 });
                 // 构造条件组的表达式
