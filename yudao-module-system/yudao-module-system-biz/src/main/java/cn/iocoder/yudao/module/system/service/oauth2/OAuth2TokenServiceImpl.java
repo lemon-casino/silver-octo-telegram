@@ -363,7 +363,7 @@ public class OAuth2TokenServiceImpl implements OAuth2TokenService {
             return null;
         }
         // 返回有效期最长的那个
-        return accessTokens.get(0);
+        return accessTokens.getFirst();
     }
 
     private OAuth2AccessTokenDO createOAuth2AccessToken(OAuth2RefreshTokenDO refreshTokenDO, OAuth2ClientDO clientDO) {
