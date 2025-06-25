@@ -182,4 +182,12 @@ public interface BpmProcessInstanceService {
     void updateProcessInstanceVariables(String id, Map<String, Object> variables);
 
     List<HistoricProcessInstance> getRunningProcessInstanceList();
+
+    /**
+     * 根据流程实例 ID 获取运行中的流程实例
+     *
+     * @param id 流程实例编号
+     * @return 运行中的流程实例列表，如果 ID 为空则返回所有运行中的流程实例
+     */
+    List<HistoricProcessInstance> getRunningProcessInstanceList(String id);
 }

@@ -2032,7 +2032,14 @@ public class BpmTaskServiceImpl implements BpmTaskService {
 
     @Override
     public Object getVariableLocal(String taskId, String variableName) {
-        return taskService.getVariableLocal(taskId, variableName);
+
+        try {
+            return taskService.getVariableLocal(taskId, variableName);
+        } catch (FlowableObjectNotFoundException e) {
+            log.warn("任务{}不存在，无法获取变量{}", taskId, variableName);
+            return null;
+        }
+
     }
 
     /**

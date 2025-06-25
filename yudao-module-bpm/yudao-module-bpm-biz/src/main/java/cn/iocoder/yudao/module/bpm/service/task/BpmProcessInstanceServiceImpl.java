@@ -46,6 +46,7 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.bpmn.constants.BpmnXMLConstants;
 import org.flowable.bpmn.model.*;
+import org.flowable.common.engine.api.FlowableObjectNotFoundException;
 import org.flowable.engine.HistoryService;
 import org.flowable.engine.ManagementService;
 import org.flowable.engine.RuntimeService;
@@ -216,13 +217,18 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
                                                         String activityId, String taskId) {
         // 1. 优先从任务局部变量读取
         if (StrUtil.isNotEmpty(taskId)) {
-            Object var = taskService.getVariableLocal(taskId,
-                    BpmnModelConstants.FORM_FIELDS_PERMISSION_VARIABLE);
-            if (var instanceof String) {
-                try {
-                    return JsonUtils.parseObject((String) var, Map.class);
-                } catch (Exception ignore) {
+            try {
+                Object var = taskService.getVariableLocal(taskId, BpmnModelConstants.FORM_FIELDS_PERMISSION_VARIABLE);
+                if (var instanceof String) {
+                    // 显式转换
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> resultMap = JsonUtils.parseObject((String) var, Map.class);
+                    return resultMap;
                 }
+            } catch (FlowableObjectNotFoundException e) {
+                log.warn("任务{}不存在，无法获取表单字段权限变量", taskId);
+            } catch (Exception e) {
+                log.error("获取任务{}的表单字段权限变量时发生错误: {}", taskId, e.getMessage());
             }
         }
 
@@ -1132,6 +1138,23 @@ public class BpmProcessInstanceServiceImpl implements BpmProcessInstanceService 
     @Override
     public List<HistoricProcessInstance> getRunningProcessInstanceList() {
         return historyService.createHistoricProcessInstanceQuery()
+                .processInstanceTenantId(FlowableUtils.getTenantId())
+                .variableValueEquals(BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_STATUS,
+                        BpmProcessInstanceStatusEnum.RUNNING.getStatus())
+                .includeProcessVariables()
+                .orderByProcessInstanceStartTime().desc()
+                .list();
+    }
+
+    @Override
+    public List<HistoricProcessInstance> getRunningProcessInstanceList(String id) {
+        // 如果 id 为空，则返回所有运行中的流程实例
+        if (StrUtil.isBlank(id)) {
+            return getRunningProcessInstanceList();
+        }
+        // 否则，只返回指定 id 的运行中流程实例
+        return historyService.createHistoricProcessInstanceQuery()
+                .processInstanceId(id)
                 .processInstanceTenantId(FlowableUtils.getTenantId())
                 .variableValueEquals(BpmnVariableConstants.PROCESS_INSTANCE_VARIABLE_STATUS,
                         BpmProcessInstanceStatusEnum.RUNNING.getStatus())

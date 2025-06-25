@@ -318,8 +318,9 @@ public class BpmTaskController {
     @GetMapping("/running-list")
     @Operation(summary = "实时获取运行中的任务列表")
     @PreAuthorize("@ss.hasPermission('bpm:task:query')")
-    public CommonResult<List<BpmRunningProcessTaskRespVO>> getRunningTaskList() {
-        List<HistoricProcessInstance> instances = processInstanceService.getRunningProcessInstanceList();
+    public CommonResult<List<BpmRunningProcessTaskRespVO>> getRunningTaskList(
+            @Parameter(description = "流程实例编号，如果为空则返回所有运行中的任务") @RequestParam(value = "id", required = false) String id) {
+        List<HistoricProcessInstance> instances = processInstanceService.getRunningProcessInstanceList(id);
         if (CollUtil.isEmpty(instances)) {
             return success(Collections.emptyList());
         }

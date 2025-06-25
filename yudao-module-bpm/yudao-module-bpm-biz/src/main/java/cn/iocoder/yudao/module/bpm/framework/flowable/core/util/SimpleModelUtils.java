@@ -738,6 +738,7 @@ public class SimpleModelUtils {
                         case "notEmpty" ->
                             // 判断变量是否有内容
                                 String.format("var:isNotEmpty('%s')", rule.getLeftSide());
+
                         case null, default ->
                             // 其他操作符,先判断变量是否存在,不存在返回false
                            /*     String.format("var:exists('%s') && execution.getVariable('%s') %s var:convertByType('%s', %s)",
