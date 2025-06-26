@@ -260,27 +260,21 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         }
 
 
-         // 3. 获取准确的总数（通过查询所有任务ID并过滤）
-        // 创建一个仅查询ID的查询对象，配置与主查询相同的过滤条件
-        HistoricTaskInstanceQuery countQuery = buildHistoricTaskQuery(userId, pageVO);
-        if (CollUtil.isNotEmpty(matchedProcessInstanceIds)) {
-            countQuery.processInstanceIdIn(matchedProcessInstanceIds);
-        }
-        long total = countQuery.list().stream()
-                .filter(task -> !START_USER_NODE_ID.equals(task.getTaskDefinitionKey()))
-                .count();
+        // 3. 查询全部数据并移除自动完成的 "发起人" 节点
+        List<HistoricTaskInstance> allTasks = taskQuery.list();
+        allTasks.removeIf(task -> START_USER_NODE_ID.equals(task.getTaskDefinitionKey()));
+        long total = allTasks.size();
 
         // 4. 如果没有数据，直接返回空结果
         if (total == 0) {
             return PageResult.empty();
         }
 
-        // 5. 分页查询数据
-        List<HistoricTaskInstance> tasks = taskQuery.listPage(PageUtils.getStart(pageVO), pageVO.getPageSize());
+        // 5. 根据分页参数截取数据
+        int start = PageUtils.getStart(pageVO);
+        int end = Math.min(start + pageVO.getPageSize(), allTasks.size());
+        List<HistoricTaskInstance> tasks = CollUtil.sub(allTasks, start, end);
 
-        // 6. 特殊：强制移除自动完成的"发起人"节点
-        // 补充说明：由于 taskQuery 无法方面的过滤，所以暂时通过内存过滤
-        tasks.removeIf(task -> task.getTaskDefinitionKey().equals(START_USER_NODE_ID));
 
         // 7. 返回准确的分页结果
         return new PageResult<>(tasks, total);
