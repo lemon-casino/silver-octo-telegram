@@ -240,28 +240,49 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     @Override
     public PageResult<HistoricTaskInstance> getTaskDonePage(Long userId, BpmTaskPageReqVO pageVO) {
         // 1. 构建查询条件
+        // 1. 处理流程实例名称的查询条件
+        List<String> matchedProcessInstanceIds = null;
+        if (StrUtil.isNotEmpty(pageVO.getProcessInstanceName())) {
+            matchedProcessInstanceIds = historyService.createHistoricProcessInstanceQuery()
+                    .processInstanceNameLike("%" + pageVO.getProcessInstanceName() + "%")
+                    .list()
+                    .stream()
+                    .map(HistoricProcessInstance::getId)
+                    .toList();
+            if (CollUtil.isEmpty(matchedProcessInstanceIds)) {
+                return PageResult.empty();
+            }
+        }
+        // 2. 构建查询条件
         HistoricTaskInstanceQuery taskQuery = buildHistoricTaskQuery(userId, pageVO);
+        if (CollUtil.isNotEmpty(matchedProcessInstanceIds)) {
+            taskQuery.processInstanceIdIn(matchedProcessInstanceIds);
+        }
 
-        // 2. 获取准确的总数（通过查询所有任务ID并过滤）
+
+         // 3. 获取准确的总数（通过查询所有任务ID并过滤）
         // 创建一个仅查询ID的查询对象，配置与主查询相同的过滤条件
         HistoricTaskInstanceQuery countQuery = buildHistoricTaskQuery(userId, pageVO);
+        if (CollUtil.isNotEmpty(matchedProcessInstanceIds)) {
+            countQuery.processInstanceIdIn(matchedProcessInstanceIds);
+        }
         long total = countQuery.list().stream()
                 .filter(task -> !START_USER_NODE_ID.equals(task.getTaskDefinitionKey()))
                 .count();
 
-        // 3. 如果没有数据，直接返回空结果
+        // 4. 如果没有数据，直接返回空结果
         if (total == 0) {
             return PageResult.empty();
         }
 
-        // 4. 分页查询数据
+        // 5. 分页查询数据
         List<HistoricTaskInstance> tasks = taskQuery.listPage(PageUtils.getStart(pageVO), pageVO.getPageSize());
 
-        // 5. 特殊：强制移除自动完成的"发起人"节点
+        // 6. 特殊：强制移除自动完成的"发起人"节点
         // 补充说明：由于 taskQuery 无法方面的过滤，所以暂时通过内存过滤
         tasks.removeIf(task -> task.getTaskDefinitionKey().equals(START_USER_NODE_ID));
 
-        // 6. 返回准确的分页结果
+        // 7. 返回准确的分页结果
         return new PageResult<>(tasks, total);
     }
 
