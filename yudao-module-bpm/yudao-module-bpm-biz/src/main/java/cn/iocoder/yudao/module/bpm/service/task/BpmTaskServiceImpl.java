@@ -1588,7 +1588,7 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                     Duration originalDuration = null;
                     String workDurationStr = BpmnModelUtils.parseWorkTimeDuration(userTaskElement);
                     if (StrUtil.isNotEmpty(workDurationStr)) {
-                        originalDuration = Duration.parse(workDurationStr);
+                        originalDuration = parseWorkDuration(workDurationStr);
                     } else if (task.getDueDate() != null) {
                         LocalDateTime originalDueTime = DateUtils.of(task.getDueDate());
                         originalDuration = Duration.between(createTime, originalDueTime);
@@ -2194,6 +2194,20 @@ public class BpmTaskServiceImpl implements BpmTaskService {
     }
 
 
+    private Duration parseWorkDuration(String durationStr) {
+        Duration parsed = Duration.parse(durationStr);
+        long days = parsed.toDaysPart();
+        long hours = parsed.toHoursPart();
+        long minutes = parsed.toMinutesPart();
+        long seconds = parsed.toSecondsPart();
+        int nanos = parsed.toNanosPart();
+
+        long totalHours = days * 8L + hours;
+        return Duration.ofHours(totalHours)
+                .plusMinutes(minutes)
+                .plusSeconds(seconds)
+                .plusNanos(nanos);
+    }
 
 
 

@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.util.date.DateUtils.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND;
@@ -32,11 +31,6 @@ public class BpmWorkTimeServiceImpl implements BpmWorkTimeService {
 
     @Resource
     private BpmWorkTimeConfigService workTimeConfigService;
-
-    private static final List<LocalTime[]> DEFAULT_RANGES = Arrays.asList(
-            new LocalTime[]{LocalTime.of(8, 0), LocalTime.of(12, 0)},
-            new LocalTime[]{LocalTime.of(13, 0), LocalTime.of(18, 0)}
-    );
     private static final DateTimeFormatter LOG_DATE_TIME_FORMATTER =
             DateTimeFormatter.ofPattern(FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND);
 
