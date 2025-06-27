@@ -2205,6 +2205,11 @@ public class BpmTaskServiceImpl implements BpmTaskService {
       */
     private Duration parseWorkDuration(String durationStr) {
         Duration parsed = Duration.parse(durationStr);
+        if (!durationStr.contains("D")) {
+            System.out.println("来到这里");
+            return parsed;
+        }
+
         long days = parsed.toDaysPart();
         long hours = parsed.toHoursPart();
         long minutes = parsed.toMinutesPart();
