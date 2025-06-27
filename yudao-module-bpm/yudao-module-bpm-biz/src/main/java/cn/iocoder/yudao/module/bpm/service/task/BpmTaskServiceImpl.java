@@ -2193,7 +2193,16 @@ public class BpmTaskServiceImpl implements BpmTaskService {
         return message;
     }
 
-
+      /*
+      *解析用于工作时间配置的ISO-8601持续时间字符串。
+      p
+      *当持续时间包含天时，每天转换为8小时，因此
+      *{@代码P1D}变为{@代码PT8H}。这允许企业用户
+      *表示工作日，而基础计算仍使用小时。
+      *@paramdurationStr持续时间字符串，例如{@code“P2DT3H”}
+      *@返回已转换日部分的解析后的{@link Duration}
+      *成小时
+      */
     private Duration parseWorkDuration(String durationStr) {
         Duration parsed = Duration.parse(durationStr);
         long days = parsed.toDaysPart();

@@ -45,7 +45,7 @@ spring:
       primary: master
       datasource:
         master:
-          url: jdbc:mysql://bpm.pakchoice.cn:12306/bpm?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
+          url: jdbc:mysql://192.168.1.9:3306/bpm?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
           username: root
           password: kylin@123
 
@@ -53,8 +53,8 @@ spring:
   # Redis 配置。Redisson 默认的配置足够使用，一般不需要进行调优
   data:
     redis:
-      host: bpm.pakchoice.cn # 地址
-      port: 12307 # 端口
+      host: 192.168.1.9 # 地址
+      port: 6379 # 端口
       database: 0 # 数据库索引
       password: Abc.123456  # 密码，建议生产环境开启
 
