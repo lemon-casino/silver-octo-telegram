@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module version="4">
+  <component name="FacetManager">
+    <facet type="JRebel" name="JRebel">
+      <configuration>
+        <option name="ideModuleStorage">
+          <map>
+            <entry key="com.zeroturnaround.jrebel.FormatVersion" value="7.0.0" />
+            <entry key="jrebelEnabled" value="true" />
+            <entry key="lastExternalPluginCheckTime" value="1745658791372" />
+            <entry key="rebelXmlGenerationInvariantToken" value="PGFwcGxpY2F0aW9uIGdlbmVyYXRlZC1ieT0iaW50ZWxsaWoiPjxpZD55dWRhby1tb2R1bGUtYnBtLWJpejwvaWQ+PGNsYXNzcGF0aD48ZGlyIG5hbWU9IkU6L0JpYW5jaGVuZy9KYXZhL2xlbW9uLWJwbS95dWRhby1tb2R1bGUtYnBtL3l1ZGFvLW1vZHVsZS1icG0tYml6L3RhcmdldC9jbGFzc2VzIj48L2Rpcj48L2NsYXNzcGF0aD48L2FwcGxpY2F0aW9uPg==" />
+          </map>
+        </option>
+        <option name="version" value="9" />
+      </configuration>
+    </facet>
+  </component>
+</module>

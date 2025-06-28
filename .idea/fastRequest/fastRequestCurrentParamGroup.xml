@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="fastRequestCurrentParamGroup">
+    <option name="clasDescription" value="管理后台 - 流程实例" />
+    <option name="className" value="cn.iocoder.yudao.module.bpm.controller.admin.task.BpmProcessInstanceController" />
+    <option name="filePath" value="" />
+    <option name="method" value="deleteProcessInstance" />
+    <option name="methodDescription" value="删除流程实例" />
+    <option name="methodType" value="DELETE" />
+    <option name="module" value="yudao-module-bpm-biz" />
+    <option name="originUrl" value="/bpm/process-instance/delete" />
+    <option name="requestParamMap">
+      <map>
+        <entry key="id">
+          <value>
+            <Object />
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="responseParamMap">
+      <map>
+        <entry key="return">
+          <value>
+            <Object />
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="returnDocument" value="{&quot;code&quot;:&quot;错误码&quot;,&quot;data&quot;:{&quot;java.lang.Boolean&quot;:&quot;No comment,Type =Boolean&quot;},&quot;msg&quot;:&quot;错误提示，用户可阅读&quot;}" />
+    <option name="tempId" value="" />
+    <option name="url" value="/bpm/process-instance/delete" />
+  </component>
+</project>
